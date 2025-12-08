@@ -42,9 +42,20 @@ socket.emit('join_room', roomId);
 
 // --- Socket Events ---
 
+// Join Room
+socket.emit('join_room', roomId);
+
+// --- Socket Events ---
+
 socket.on('room_state', (state) => {
     if (state.currentMedia && state.currentMedia.url) {
         initVideo(state.currentMedia.url);
+    }
+    // Handle Late Joiner viewing Screen Share
+    if (state.activeStreamer) {
+        activeStreamerId = state.activeStreamer;
+        setupRemoteVideo();
+        socket.emit('request_feed', { to: activeStreamerId, from: socket.id });
     }
 });
 
@@ -78,46 +89,6 @@ socket.on('seek', ({ mediaTime }) => {
 });
 
 socket.on('chat_message', (msg) => {
-    addMessageToUI(msg);
-});
-
-// --- WebRTC Events ---
-
-socket.on('user_joined', ({ userId }) => {
-    // If I am the streamer, initiate connection to new user
-    if (isScreenSharing && screenStream) {
-        initiateConnection(userId);
-    }
-});
-
-socket.on('stream_started', ({ streamerId }) => {
-    activeStreamerId = streamerId;
-    // UI Update: Viewer side preparation
-    if (streamerId !== socket.id) {
-        // Hide other players
-        if (document.getElementById('player')) document.getElementById('player').style.display = 'none';
-        if (document.getElementById('websiteFrame')) document.getElementById('websiteFrame').classList.add('hidden');
-
-        // Show video container
-        const playerContainer = document.getElementById('player').parentNode;
-        let screenVideo = document.getElementById('screenShareVideo');
-        if (!screenVideo) {
-            screenVideo = document.createElement('video');
-            screenVideo.id = 'screenShareVideo';
-            screenVideo.className = 'w-full h-full object-contain bg-black';
-            screenVideo.autoplay = true;
-            screenVideo.playsInline = true;
-            playerContainer.appendChild(screenVideo);
-        }
-        screenVideo.style.display = 'block';
-        addMessageToUI({ user: 'System', text: 'Incoming Screen Share...', createdAt: new Date().toISOString() });
-    }
-});
-
-socket.on('stream_stopped', () => {
-    activeStreamerId = null;
-
-    // Cleanup Peers
     Object.values(peers).forEach(p => p.close());
     peers = {};
 
@@ -166,7 +137,12 @@ function createPeerConnection(targetUserId, isInitiator) {
     };
 
     peer.ontrack = (event) => {
-        const screenVideo = document.getElementById('screenShareVideo');
+        let screenVideo = document.getElementById('screenShareVideo');
+        // Ensure video element exists (in case signal arrived before stream_started or late join)
+        if (!screenVideo) {
+            setupRemoteVideo();
+            screenVideo = document.getElementById('screenShareVideo');
+        }
         if (screenVideo) {
             screenVideo.srcObject = event.streams[0];
         }

@@ -122,6 +122,11 @@ io.on('connection', (socket) => {
         io.to(to).emit('signal', { from, signal });
     });
 
+    // Request Feed (Viewer asks Streamer for connection)
+    socket.on('request_feed', ({ to, from }) => {
+        io.to(to).emit('request_feed', { from });
+    });
+
     socket.on('disconnect', () => {
         // console.log('User disconnected:', socket.id);
     });
