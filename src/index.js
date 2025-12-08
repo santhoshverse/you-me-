@@ -55,9 +55,13 @@ io.on('connection', (socket) => {
                 },
                 currentMedia: {
                     url: null // No default video, waiting for user selection
-                }
+                },
+                activeStreamer: null // Track who is screen sharing
             };
         }
+
+        // Notify existing users if someone new joined (for Mesh WebRTC trigger)
+        socket.to(roomId).emit('user_joined', { userId: socket.id });
 
         // Send current state to user
         socket.emit('room_state', rooms[roomId]);
@@ -94,6 +98,28 @@ io.on('connection', (socket) => {
 
     socket.on('chat_message', ({ roomId, text, user }) => {
         io.to(roomId).emit('chat_message', { text, user, createdAt: new Date().toISOString() });
+    });
+
+    // --- WebRTC Signaling ---
+
+    socket.on('start_stream', ({ roomId }) => {
+        if (rooms[roomId]) {
+            rooms[roomId].activeStreamer = socket.id;
+            // Broadcast to all clients in room to prepare for stream
+            socket.to(roomId).emit('stream_started', { streamerId: socket.id });
+        }
+    });
+
+    socket.on('stop_stream', ({ roomId }) => {
+        if (rooms[roomId]) {
+            rooms[roomId].activeStreamer = null;
+            socket.to(roomId).emit('stream_stopped');
+        }
+    });
+
+    // Relay signaling data (Offer, Answer, ICE Candidates)
+    socket.on('signal', ({ to, from, signal }) => {
+        io.to(to).emit('signal', { from, signal });
     });
 
     socket.on('disconnect', () => {

@@ -24,6 +24,15 @@ let username = prompt('Enter your name:') || `Guest-${Math.floor(Math.random() *
 let player;
 let isHost = false; // Logic for host buffering could be added
 let isTimeSyncing = false; // Prevent feedback loops
+let peers = {}; // userId -> RTCPeerConnection
+let activeStreamerId = null;
+
+const rtcConfig = {
+    iceServers: [
+        { urls: 'stun:stun.l.google.com:19302' },
+        { urls: 'stun:stun1.l.google.com:19302' }
+    ]
+};
 
 // Display Room ID
 document.getElementById('displayRoomId').innerText = roomId.slice(0, 8) + '...';
@@ -71,6 +80,115 @@ socket.on('seek', ({ mediaTime }) => {
 socket.on('chat_message', (msg) => {
     addMessageToUI(msg);
 });
+
+// --- WebRTC Events ---
+
+socket.on('user_joined', ({ userId }) => {
+    // If I am the streamer, initiate connection to new user
+    if (isScreenSharing && screenStream) {
+        initiateConnection(userId);
+    }
+});
+
+socket.on('stream_started', ({ streamerId }) => {
+    activeStreamerId = streamerId;
+    // UI Update: Viewer side preparation
+    if (streamerId !== socket.id) {
+        // Hide other players
+        if (document.getElementById('player')) document.getElementById('player').style.display = 'none';
+        if (document.getElementById('websiteFrame')) document.getElementById('websiteFrame').classList.add('hidden');
+
+        // Show video container
+        const playerContainer = document.getElementById('player').parentNode;
+        let screenVideo = document.getElementById('screenShareVideo');
+        if (!screenVideo) {
+            screenVideo = document.createElement('video');
+            screenVideo.id = 'screenShareVideo';
+            screenVideo.className = 'w-full h-full object-contain bg-black';
+            screenVideo.autoplay = true;
+            screenVideo.playsInline = true;
+            playerContainer.appendChild(screenVideo);
+        }
+        screenVideo.style.display = 'block';
+        addMessageToUI({ user: 'System', text: 'Incoming Screen Share...', createdAt: new Date().toISOString() });
+    }
+});
+
+socket.on('stream_stopped', () => {
+    activeStreamerId = null;
+
+    // Cleanup Peers
+    Object.values(peers).forEach(p => p.close());
+    peers = {};
+
+    // Remove remote video
+    const screenVideo = document.getElementById('screenShareVideo');
+    if (screenVideo) screenVideo.remove();
+
+    // Restore Player
+    if (document.getElementById('player')) document.getElementById('player').style.display = 'block';
+});
+
+socket.on('signal', async ({ from, signal }) => {
+    // Ignore own signals (shouldn't happen but good safeguard)
+    if (from === socket.id) return;
+
+    if (!peers[from]) {
+        peers[from] = createPeerConnection(from, false);
+    }
+
+    const peer = peers[from];
+
+    try {
+        if (signal.description) {
+            await peer.setRemoteDescription(new RTCSessionDescription(signal.description));
+
+            if (signal.description.type === 'offer') {
+                const answer = await peer.createAnswer();
+                await peer.setLocalDescription(answer);
+                socket.emit('signal', { to: from, from: socket.id, signal: { description: answer } });
+            }
+        } else if (signal.candidate) {
+            await peer.addIceCandidate(new RTCIceCandidate(signal.candidate));
+        }
+    } catch (e) {
+        console.error('Signaling Error:', e);
+    }
+});
+
+function createPeerConnection(targetUserId, isInitiator) {
+    const peer = new RTCPeerConnection(rtcConfig);
+
+    peer.onicecandidate = (event) => {
+        if (event.candidate) {
+            socket.emit('signal', { to: targetUserId, from: socket.id, signal: { candidate: event.candidate } });
+        }
+    };
+
+    peer.ontrack = (event) => {
+        const screenVideo = document.getElementById('screenShareVideo');
+        if (screenVideo) {
+            screenVideo.srcObject = event.streams[0];
+        }
+    };
+
+    // If we are sharing, add tracks
+    if (isScreenSharing && screenStream) {
+        screenStream.getTracks().forEach(track => peer.addTrack(track, screenStream));
+    }
+
+    return peer;
+}
+
+async function initiateConnection(targetUserId) {
+    const peer = createPeerConnection(targetUserId, true);
+    peers[targetUserId] = peer;
+
+    const offer = await peer.createOffer();
+    await peer.setLocalDescription(offer);
+
+    socket.emit('signal', { to: targetUserId, from: socket.id, signal: { description: offer } });
+}
 
 
 // --- YouTube Player ---
@@ -335,6 +453,7 @@ async function toggleScreenShare() {
             document.getElementById('screenBtn').classList.remove('bg-white/50', 'text-slate-500');
 
             isScreenSharing = true;
+            socket.emit('start_stream', { roomId }); // Notify server
 
             // Handle stream stop (user clicks "Stop Sharing" in browser UI)
             stream.getVideoTracks()[0].onended = () => {
@@ -354,6 +473,15 @@ function stopScreenShare() {
     if (screenStream) {
         screenStream.getTracks().forEach(track => track.stop());
     }
+
+    // Notify server
+    if (isScreenSharing) {
+        socket.emit('stop_stream', { roomId });
+    }
+
+    // Close all peer connections
+    Object.values(peers).forEach(p => p.close());
+    peers = {};
 
     // UI Cleanup
     const screenVideo = document.getElementById('screenShareVideo');
