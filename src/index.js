@@ -38,38 +38,6 @@ app.use(express.json()); // Enable JSON body parsing
 // Room state storage (In-memory for MVP)
 const rooms = {};
 
-// User storage (In-memory for MVP)
-const users = [];
-
-app.post('/api/signup', (req, res) => {
-    const { username } = req.body;
-    if (!username) return res.status(400).json({ error: 'Username required' });
-
-    // Check if exists
-    if (users.find(u => u.username === username)) {
-        return res.status(400).json({ error: 'User exists' });
-    }
-
-    users.push({ username });
-    res.json({ success: true });
-});
-
-app.post('/api/login', (req, res) => {
-    const { username } = req.body;
-    if (!username) return res.status(400).json({ error: 'Username required' });
-
-    let user = users.find(u => u.username === username);
-
-    // Auto-register if not found (Frictionless entry for MVP)
-    if (!user) {
-        user = { username };
-        users.push(user);
-        console.log(`[AUTH] Auto-registered new user: ${username}`);
-    }
-
-    res.json({ user: { username } });
-});
-
 io.on('connection', (socket) => {
     // console.log('User connected:', socket.id);
 
@@ -137,11 +105,11 @@ io.on('connection', (socket) => {
 // or index.html otherwise.
 app.get('/room/:roomId', (req, res) => {
     console.log(`Debug: Hit /room/${req.params.roomId}`);
-    res.sendFile(path.join(__dirname, '../../frontend_html/room.html'));
+    res.sendFile(path.join(__dirname, '../public/room.html'));
 });
 
 app.get('*', (req, res) => {
-    res.sendFile(path.join(__dirname, '../../frontend_html/index.html'));
+    res.sendFile(path.join(__dirname, '../public/index.html'));
 });
 
 server.listen(PORT, () => {
