@@ -10,29 +10,6 @@ dotenv.config();
 const app = express();
 app.use(cors());
 
-app.use((req, res, next) => {
-    console.log(`[REQUEST] ${req.method} ${req.url}`);
-    next();
-});
-
-// Serve static files from 'public' directory (Deployment Ready)
-app.use(express.static(path.join(__dirname, '../public')));
-
-const server = http.createServer(app);
-const io = new Server(server, {
-    cors: {
-        origin: "*",
-        methods: ["GET", "POST"]
-    }
-});
-
-const PORT = process.env.PORT || 3001;
-
-// API Routes
-app.get('/api/health', (req, res) => {
-    res.json({ status: 'ok' });
-});
-
 app.use(express.json()); // Enable JSON body parsing
 
 // Room state storage (In-memory for MVP)
