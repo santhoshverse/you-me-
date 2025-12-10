@@ -106,11 +106,12 @@ function initVideo(url) {
 
     const origin = window.location.origin === 'null' ? '*' : window.location.origin;
 
+    // console.log("Init Video with Origin:", origin);
+
     player = new YT.Player('player', {
         height: '100%',
         width: '100%',
         videoId: videoId,
-        host: 'https://www.youtube.com',
         playerVars: {
             'playsinline': 1,
             'controls': 1,
@@ -119,6 +120,7 @@ function initVideo(url) {
             'origin': origin
         },
         events: {
+            'onReady': (event) => console.log("YouTube Player Ready!"),
             'onStateChange': onPlayerStateChange,
             'onError': onPlayerError
         }
