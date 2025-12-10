@@ -60,6 +60,13 @@ io.on('connection', (socket) => {
         // Notify existing users if someone new joined (for Mesh WebRTC trigger)
         socket.to(roomId).emit('user_joined', { userId: socket.id });
 
+        // UPDATE USER COUNT
+        // Store room ID on socket for disconnect tracking
+        socket.roomId = roomId;
+        const room = io.sockets.adapter.rooms.get(roomId);
+        const userCount = room ? room.size : 0;
+        io.to(roomId).emit('update_user_count', userCount);
+
         // Send current state to user
         socket.emit('room_state', rooms[roomId]);
 
@@ -146,7 +153,17 @@ io.on('connection', (socket) => {
     });
 
     socket.on('disconnect', () => {
-        // console.log('User disconnected:', socket.id);
+        // Find which rooms this user was in and update counts
+        // (Socket.io automatically leaves rooms on disconnect, but we need to notify others)
+        // Since we don't track user->room mapping cheaply, we can rely on client-side or check io.sockets.adapter
+        // For simple MVP without explicit tracking, iterating is hard. 
+        // Better: we can store roomId on socket object
+        if (socket.roomId) {
+            const roomId = socket.roomId;
+            const room = io.sockets.adapter.rooms.get(roomId);
+            const userCount = room ? room.size : 0;
+            io.to(roomId).emit('update_user_count', userCount);
+        }
     });
 });
 

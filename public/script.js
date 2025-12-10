@@ -80,6 +80,12 @@ socket.on('chat_message', (msg) => {
     addMessageToUI(msg);
 });
 
+socket.on('update_user_count', (count) => {
+    console.log("User count updated:", count);
+    const countEl = document.getElementById('userCount');
+    if (countEl) countEl.innerText = count;
+});
+
 
 // --- YouTube Player ---
 
@@ -481,9 +487,9 @@ const iceServers = {
 // Handle new user joining - if we are the streamer, we need to connect to them
 socket.on('user_joined', ({ userId }) => {
     console.log(`User joined: ${userId}`);
-    // Update count UI
-    const countEl = document.getElementById('userCount');
-    if (countEl) countEl.innerText = parseInt(countEl.innerText) + 1;
+    // We rely on 'update_user_count' for the number now
+    // const countEl = document.getElementById('userCount');
+    // if (countEl) countEl.innerText = parseInt(countEl.innerText) + 1;
 
     if (isScreenSharing && screenStream) {
         console.log(`Initiating connection to new user ${userId}`);
@@ -499,9 +505,9 @@ socket.on('user_left', ({ userId }) => {
         peers[userId].close();
         delete peers[userId];
     }
-    // Update count UI
-    const countEl = document.getElementById('userCount');
-    if (countEl) countEl.innerText = Math.max(1, parseInt(countEl.innerText) - 1);
+    // Update count UI - Handled by broadcast now
+    // const countEl = document.getElementById('userCount');
+    // if (countEl) countEl.innerText = Math.max(1, parseInt(countEl.innerText) - 1);
 });
 
 // Handle signal (Offer, Answer, ICE Candidate)
