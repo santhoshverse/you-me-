@@ -1,4 +1,4 @@
-console.log("RELEASE v2.6 LOADED - REGEX FIX");
+console.log("RELEASE v2.7 LOADED - SYNC CHECK");
 const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
 
 const socketUrl = isLocal ? 'http://127.0.0.1:3001' : undefined;
@@ -37,7 +37,8 @@ document.getElementById('displayRoomId').innerText = roomId;
 document.getElementById('displayRoomId').title = roomId; // Tooltip
 
 // Join Room
-socket.emit('join_room', roomId);
+// Join Room MOVED to bottom of file to ensure listeners are ready
+// socket.emit('join_room', roomId);
 
 // --- Socket Events ---
 
@@ -686,4 +687,25 @@ function copyInvite() {
         btn.classList.remove('bg-green-500', 'text-white');
         btn.classList.add('from-indigo-600', 'to-purple-600');
     }, 2000);
+}
+
+
+// --- Final Initialization ---
+
+socket.on('connect', () => {
+    document.getElementById('appVersion').innerText = 'v2.7 (Connected)';
+    document.getElementById('appVersion').classList.add('text-green-600', 'border-green-300');
+    console.log("Connected! Joining room:", roomId);
+    socket.emit('join_room', roomId);
+});
+
+socket.on('disconnect', () => {
+    document.getElementById('appVersion').innerText = 'v2.7 (Disconnected)';
+    document.getElementById('appVersion').classList.remove('text-green-600', 'border-green-300');
+    document.getElementById('appVersion').classList.add('text-red-600', 'border-red-300');
+});
+
+// Trigger initial join if already connected (rare race condition but safe)
+if (socket.connected) {
+    socket.emit('join_room', roomId);
 }
