@@ -1,4 +1,4 @@
-console.log("RELEASE v2.1 LOADED");
+console.log("RELEASE v2.2 LOADED");
 const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
 
 // ... (lines 4-84 omitted for brevity in instruction, looking for initVideo start)
@@ -241,6 +241,9 @@ function loadVideo(e) {
     // Hide website frame if visible
     document.getElementById('websiteFrame').classList.add('hidden');
     if (document.getElementById('player')) document.getElementById('player').style.display = 'block';
+
+    // Close the popup
+    document.getElementById('urlInputDiv').classList.add('hidden');
 }
 
 function loadWebsite(e) {
@@ -263,6 +266,9 @@ function loadWebsite(e) {
 
     // Send to chat for others
     addMessageToUI({ user: 'System', text: `Loaded Website: ${url}`, createdAt: new Date().toISOString() });
+
+    // Close the popup
+    document.getElementById('webInputDiv').classList.add('hidden');
 }
 
 function extractVideoId(url) {
