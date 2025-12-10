@@ -1,5 +1,60 @@
-console.log("RELEASE v2.0 LOADED");
+console.log("RELEASE v2.1 LOADED");
 const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+
+// ... (lines 4-84 omitted for brevity in instruction, looking for initVideo start)
+
+function initVideo(url) {
+    const videoId = extractVideoId(url);
+    console.log("DEBUG: InitVideo with URL:", url, "Extracted ID:", videoId);
+    if (!videoId) {
+        console.error("DEBUG: No valid Video ID found!");
+        return;
+    }
+
+    // Ensure player wrapper exists for robust recreation
+    let playerElement = document.getElementById('player');
+    const playerContainer = document.getElementById('player-wrapper') || playerElement?.parentNode;
+
+    // Add wrapper ID if missing to parent for future reference
+    if (playerContainer && !playerContainer.id) playerContainer.id = 'player-wrapper';
+
+    // Destroy existing if needed
+    if (player && player.destroy) {
+        player.destroy();
+    }
+
+    // Re-create div if it was removed by destroy() or doesn't exist
+    if (!document.getElementById('player')) {
+        const newDiv = document.createElement('div');
+        newDiv.id = 'player';
+        playerContainer.appendChild(newDiv);
+    }
+
+    const origin = window.location.origin === 'null' ? '*' : window.location.origin;
+
+    // console.log("Init Video with Origin:", origin);
+
+    console.log("DEBUG: Creating NEW YT.Player instance...");
+    player = new YT.Player('player', {
+        height: '100%',
+        width: '100%',
+        videoId: videoId,
+        host: 'https://www.youtube.com',
+        playerVars: {
+            'playsinline': 1,
+            'controls': 1,
+            'rel': 0,
+            'enablejsapi': 1,
+            'origin': origin
+        },
+        events: {
+            'onReady': (event) => console.log("YouTube Player Ready!"),
+            'onStateChange': onPlayerStateChange,
+            'onError': onPlayerError
+        }
+    });
+
+}
 const socketUrl = isLocal ? 'http://127.0.0.1:3001' : undefined;
 const socket = io(socketUrl);
 
