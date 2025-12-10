@@ -1,3 +1,4 @@
+console.log("RELEASE v2.0 LOADED");
 const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
 const socketUrl = isLocal ? 'http://127.0.0.1:3001' : undefined;
 const socket = io(socketUrl);
