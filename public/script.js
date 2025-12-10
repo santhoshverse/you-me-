@@ -1,23 +1,20 @@
-console.log("RELEASE v2.4 LOADED");
+console.log("RELEASE v2.6 LOADED - REGEX FIX");
 const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
 
 const socketUrl = isLocal ? 'http://127.0.0.1:3001' : undefined;
 const socket = io(socketUrl);
 
-// Robust Room ID extraction (Supports both /room/:id and room.html?id=:id)
+// Robust Room ID extraction (Regex based)
 function getRoomId() {
-    // 1. Check query param first (e.g., room.html?id=123)
+    // 1. Check query param (e.g., room.html?id=123)
     const params = new URLSearchParams(window.location.search);
-    if (params.get('id')) {
-        return params.get('id');
-    }
+    if (params.get('id')) return params.get('id');
 
-    // 2. Check path (e.g., /room/123 or /app/room/123)
-    const pathParts = window.location.pathname.split('/');
-    const roomIndex = pathParts.indexOf('room');
-
-    if (roomIndex !== -1 && pathParts[roomIndex + 1]) {
-        return pathParts[roomIndex + 1];
+    // 2. Regex check for path (e.g., /room/123, /room/123/, /app/room/123)
+    // Looking for a segment after 'room/' that is NOT empty
+    const match = window.location.pathname.match(/room\/([^\/]+)/);
+    if (match && match[1]) {
+        return match[1];
     }
 
     return null;
@@ -35,7 +32,9 @@ let isHost = false; // Logic for host buffering could be added
 let isTimeSyncing = false; // Prevent feedback loops
 
 // Display Room ID
-document.getElementById('displayRoomId').innerText = roomId.slice(0, 8) + '...';
+// Display Room ID - SHOW FULL ID to avoid confusion
+document.getElementById('displayRoomId').innerText = roomId;
+document.getElementById('displayRoomId').title = roomId; // Tooltip
 
 // Join Room
 socket.emit('join_room', roomId);
