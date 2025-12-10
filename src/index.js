@@ -11,6 +11,18 @@ const app = express();
 app.use(cors());
 
 app.use(express.json()); // Enable JSON body parsing
+app.use(express.static(path.join(__dirname, '../public'))); // Serve static files
+
+const server = http.createServer(app);
+const io = new Server(server, {
+    cors: {
+        origin: "*",
+        methods: ["GET", "POST"]
+    }
+});
+
+const PORT = 3001;
+
 
 // Room state storage (In-memory for MVP)
 const rooms = {};

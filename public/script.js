@@ -309,7 +309,7 @@ async function toggleScreenShare() {
             const stream = await navigator.mediaDevices.getDisplayMedia({ video: true });
             screenStream = stream;
 
-            // Replace Main Player with Screen Share
+            // Replace Main Player with Screen Share (Local View)
             const playerContainer = document.getElementById('player').parentNode;
 
             // Create a video element for screen share if not exists
@@ -320,6 +320,7 @@ async function toggleScreenShare() {
                 screenVideo.className = 'w-full h-full object-contain bg-black';
                 screenVideo.autoplay = true;
                 screenVideo.playsInline = true;
+                screenVideo.muted = true; // Mute local self-view
                 playerContainer.appendChild(screenVideo);
             }
 
@@ -336,6 +337,29 @@ async function toggleScreenShare() {
 
             isScreenSharing = true;
 
+            // Notify server we are streaming
+            socket.emit('start_stream', { roomId });
+
+            // Note: We don't have a list of all OTHER users readily available in state without tracking them.
+            // But the backend knows who is in the room. 
+            // APPROACH: We need the other users to "request request" or we broadcast offers.
+            // Better MVP: When we start streaming, we can't easily iterate all peers unless we tracked 'user_joined' since beginning 
+            // OR we ask the server for a list of connected users.
+            // Let's implement a "request_feed" listener for late-joiners/existing-peers pattern, OR:
+            // Simplest: The server knows everyone.
+            // Let's modify toggleScreenShare to just set state.
+            // AND ALSO: We need a mechanism to connect to ALREADY present users. 
+            // Since we don't have a user list in `peers`, we can ask the server "who is here?"
+            // OR simpler: broadcast a "hello I am streaming" which 'start_stream' does.
+            // Listeners to 'stream_started' (which backend broadcasts) should initiate the connection?
+            // Actually, usually the Streamer initiates offers.
+            // Hybrid: 
+            // 1. Streamer emits 'start_stream'.
+            // 2. Others receive 'stream_started' (with streamerId).
+            // 3. Others emit 'request_feed' { to: streamerId }
+            // 4. Streamer receives 'request_feed', creates PeerConnection, adds tracks, sends Offer.
+
+
             // Handle stream stop (user clicks "Stop Sharing" in browser UI)
             stream.getVideoTracks()[0].onended = () => {
                 stopScreenShare();
@@ -343,7 +367,7 @@ async function toggleScreenShare() {
 
         } catch (e) {
             console.error(e);
-            alert('Could not share screen');
+            alert('Could not share screen: ' + e.message);
         }
     } else {
         stopScreenShare();
@@ -351,23 +375,48 @@ async function toggleScreenShare() {
 }
 
 function stopScreenShare() {
+    isScreenSharing = false;
+    socket.emit('stop_stream', { roomId });
+
     if (screenStream) {
         screenStream.getTracks().forEach(track => track.stop());
+        screenStream = null;
     }
+
+    // Close all peer connections?
+    Object.values(peers).forEach(pc => pc.close());
+    for (let key in peers) delete peers[key];
 
     // UI Cleanup
     const screenVideo = document.getElementById('screenShareVideo');
-    if (screenVideo) screenVideo.style.display = 'none';
+    if (screenVideo) {
+        screenVideo.srcObject = null;
+        screenVideo.style.display = 'none'; // Or remove it
+    }
 
     // Show YouTube Player back
     if (document.getElementById('player')) document.getElementById('player').style.display = 'block';
 
     document.getElementById('screenBtn').classList.remove('bg-indigo-100', 'text-indigo-600');
     document.getElementById('screenBtn').classList.add('bg-white/50', 'text-slate-500');
-
-    isScreenSharing = false;
-    screenStream = null;
 }
+
+// Listen for when someone ELSE starts streaming
+socket.on('stream_started', ({ streamerId }) => {
+    // We want to see it!
+    // Ask for the feed
+    console.log('Stream started by', streamerId, 'requesting feed...');
+    socket.emit('request_feed', { to: streamerId, from: socket.id });
+});
+
+// Streamer responds to request
+socket.on('request_feed', ({ from }) => {
+    if (isScreenSharing && screenStream) {
+        console.log('Received request for feed from', from);
+        const pc = createPeerConnection(from, true); // true = initiator (we send offer)
+        peers[from] = pc;
+    }
+});
 
 // --- Participant List ---
 
@@ -401,6 +450,117 @@ function renderParticipantList(users) {
 
 // Initial Render
 renderParticipantList([{ name: username, cam: false, mic: false, isMe: true }]);
+
+
+// --- WebRTC Logic ---
+
+const peers = {}; // userId -> RTCPeerConnection
+const iceServers = {
+    iceServers: [
+        { urls: 'stun:stun.l.google.com:19302' },
+        { urls: 'stun:stun1.l.google.com:19302' }
+    ]
+};
+
+// Handle new user joining - if we are the streamer, we need to connect to them
+socket.on('user_joined', ({ userId }) => {
+    if (isScreenSharing && screenStream) {
+        // We are streaming, so initiate connection to the new user
+        const pc = createPeerConnection(userId, true);
+        peers[userId] = pc;
+    }
+});
+
+// Handle signal (Offer, Answer, ICE Candidate)
+socket.on('signal', async ({ from, signal }) => {
+    let pc = peers[from];
+
+    if (!pc) {
+        // Received a signal from someone we don't have a connection with yet (likely an offer)
+        pc = createPeerConnection(from, false);
+        peers[from] = pc;
+    }
+
+    try {
+        if (signal.type === 'offer') {
+            await pc.setRemoteDescription(new RTCSessionDescription(signal));
+            const answer = await pc.createAnswer();
+            await pc.setLocalDescription(answer);
+            socket.emit('signal', { to: from, from: socket.id, signal: pc.localDescription });
+        } else if (signal.type === 'answer') {
+            await pc.setRemoteDescription(new RTCSessionDescription(signal));
+        } else if (signal.candidate) {
+            await pc.addIceCandidate(new RTCIceCandidate(signal));
+        }
+    } catch (error) {
+        console.error('Error handling signal:', error);
+    }
+});
+
+socket.on('stream_stopped', () => {
+    // If someone else stopped streaming, remove their video
+    const screenVideo = document.getElementById('screenShareVideo');
+    if (screenVideo) {
+        screenVideo.srcObject = null;
+        screenVideo.remove();
+    }
+
+    // Restore player
+    if (document.getElementById('player')) document.getElementById('player').style.display = 'block';
+
+    // Close all peer connections associated with receiving streams? 
+    // Actually, in this simple mesh, we might want to just close all peers or keep them open.
+    // For simplicity, let's keep them but renegotiation would be needed for multiple streams.
+    // MVP: dynamic cleanup is good.
+});
+
+function createPeerConnection(targetUserId, isInitiator) {
+    const pc = new RTCPeerConnection(iceServers);
+
+    pc.onicecandidate = (event) => {
+        if (event.candidate) {
+            socket.emit('signal', { to: targetUserId, from: socket.id, signal: event.candidate });
+        }
+    };
+
+    pc.ontrack = (event) => {
+        console.log("Received track from", targetUserId);
+
+        // When we receive a track (screen share), display it
+        const playerContainer = document.getElementById('player').parentNode;
+
+        // Hide YouTube
+        if (document.getElementById('player')) document.getElementById('player').style.display = 'none';
+
+        let screenVideo = document.getElementById('screenShareVideo');
+        if (!screenVideo) {
+            screenVideo = document.createElement('video');
+            screenVideo.id = 'screenShareVideo';
+            screenVideo.className = 'w-full h-full object-contain bg-black';
+            screenVideo.autoplay = true;
+            screenVideo.playsInline = true;
+            playerContainer.appendChild(screenVideo);
+        }
+
+        screenVideo.srcObject = event.streams[0];
+        screenVideo.style.display = 'block';
+    };
+
+    if (isInitiator && screenStream) {
+        screenStream.getTracks().forEach(track => pc.addTrack(track, screenStream));
+    }
+
+    if (isInitiator) {
+        // Create Offer
+        pc.createOffer().then(offer => {
+            return pc.setLocalDescription(offer);
+        }).then(() => {
+            socket.emit('signal', { to: targetUserId, from: socket.id, signal: pc.localDescription });
+        }).catch(e => console.error("Error creating offer:", e));
+    }
+
+    return pc;
+}
 
 
 // --- Media Sources Logic ---
