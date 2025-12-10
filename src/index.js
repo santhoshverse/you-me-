@@ -7,6 +7,14 @@ const path = require('path');
 
 dotenv.config();
 
+const { initializeDatabase } = require('./database');
+
+let db;
+
+(async () => {
+    db = await initializeDatabase();
+})();
+
 const app = express();
 app.use(cors());
 
@@ -30,7 +38,7 @@ const rooms = {};
 io.on('connection', (socket) => {
     // console.log('User connected:', socket.id);
 
-    socket.on('join_room', (roomId) => {
+    socket.on('join_room', async (roomId) => {
         socket.join(roomId);
         // console.log(`User ${socket.id} joined room ${roomId}`);
 
@@ -54,6 +62,16 @@ io.on('connection', (socket) => {
 
         // Send current state to user
         socket.emit('room_state', rooms[roomId]);
+
+        // Load chat history
+        if (db) {
+            try {
+                const messages = await db.all('SELECT * FROM messages WHERE room_id = ? ORDER BY created_at ASC', [roomId]);
+                socket.emit('chat_history', messages);
+            } catch (e) {
+                console.error('Error fetching history:', e);
+            }
+        }
     });
 
     socket.on('play', ({ roomId, mediaTime }) => {
@@ -85,8 +103,19 @@ io.on('connection', (socket) => {
         }
     });
 
-    socket.on('chat_message', ({ roomId, text, user }) => {
-        io.to(roomId).emit('chat_message', { text, user, createdAt: new Date().toISOString() });
+    socket.on('chat_message', async ({ roomId, text, user }) => {
+        const timestamp = new Date().toISOString();
+
+        // Save to DB
+        if (db) {
+            try {
+                await db.run('INSERT INTO messages (room_id, username, content, created_at) VALUES (?, ?, ?, ?)', [roomId, user, text, timestamp]);
+            } catch (e) {
+                console.error('Error saving message:', e);
+            }
+        }
+
+        io.to(roomId).emit('chat_message', { text, user, createdAt: timestamp });
     });
 
     // --- WebRTC Signaling ---
