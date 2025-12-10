@@ -1,4 +1,4 @@
-console.log("RELEASE v2.7 LOADED - SYNC CHECK");
+console.log("RELEASE v2.8 LOADED - SERVER ID CHECK");
 const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
 
 const socketUrl = isLocal ? 'http://127.0.0.1:3001' : undefined;
@@ -43,6 +43,11 @@ document.getElementById('displayRoomId').title = roomId; // Tooltip
 // --- Socket Events ---
 
 socket.on('room_state', (state) => {
+    // Show Server ID
+    if (state.serverId) {
+        document.getElementById('appVersion').innerText = `v2.8 (Srv: ${state.serverId})`;
+    }
+
     if (state.currentMedia && state.currentMedia.url) {
         initVideo(state.currentMedia.url);
     }
@@ -693,14 +698,14 @@ function copyInvite() {
 // --- Final Initialization ---
 
 socket.on('connect', () => {
-    document.getElementById('appVersion').innerText = 'v2.7 (Connected)';
+    document.getElementById('appVersion').innerText = 'v2.8 (Connected)';
     document.getElementById('appVersion').classList.add('text-green-600', 'border-green-300');
     console.log("Connected! Joining room:", roomId);
     socket.emit('join_room', roomId);
 });
 
 socket.on('disconnect', () => {
-    document.getElementById('appVersion').innerText = 'v2.7 (Disconnected)';
+    document.getElementById('appVersion').innerText = 'v2.8 (Disconnected)';
     document.getElementById('appVersion').classList.remove('text-green-600', 'border-green-300');
     document.getElementById('appVersion').classList.add('text-red-600', 'border-red-300');
 });

@@ -32,6 +32,9 @@ const io = new Server(server, {
 const PORT = 3001;
 
 
+const SERVER_ID = Math.floor(Math.random() * 10000).toString();
+console.log(`SERVER INSTANCE ID: ${SERVER_ID}`);
+
 // Room state storage (In-memory for MVP)
 const rooms = {};
 
@@ -53,22 +56,27 @@ io.on('connection', (socket) => {
                 currentMedia: {
                     url: null // No default video, waiting for user selection
                 },
-                activeStreamer: null // Track who is screen sharing
+                activeStreamer: null, // Track who is screen sharing
+                users: [] // Manual user tracking
             };
+        }
+
+        // Add user to manual list if not present
+        if (!rooms[roomId].users.includes(socket.id)) {
+            rooms[roomId].users.push(socket.id);
         }
 
         // Notify existing users if someone new joined (for Mesh WebRTC trigger)
         socket.to(roomId).emit('user_joined', { userId: socket.id });
 
-        // UPDATE USER COUNT
+        // UPDATE USER COUNT - Use Manual Array
         // Store room ID on socket for disconnect tracking
         socket.roomId = roomId;
-        const room = io.sockets.adapter.rooms.get(roomId);
-        const userCount = room ? room.size : 0;
+        const userCount = rooms[roomId].users.length;
         io.to(roomId).emit('update_user_count', userCount);
 
-        // Send current state to user
-        socket.emit('room_state', rooms[roomId]);
+        // Send current state to user (Include SERVER_ID)
+        socket.emit('room_state', { ...rooms[roomId], serverId: SERVER_ID });
 
         // Load chat history
         if (db) {
@@ -153,16 +161,17 @@ io.on('connection', (socket) => {
     });
 
     socket.on('disconnect', () => {
-        // Find which rooms this user was in and update counts
-        // (Socket.io automatically leaves rooms on disconnect, but we need to notify others)
-        // Since we don't track user->room mapping cheaply, we can rely on client-side or check io.sockets.adapter
-        // For simple MVP without explicit tracking, iterating is hard. 
-        // Better: we can store roomId on socket object
-        if (socket.roomId) {
+        if (socket.roomId && rooms[socket.roomId]) {
             const roomId = socket.roomId;
-            const room = io.sockets.adapter.rooms.get(roomId);
-            const userCount = room ? room.size : 0;
+
+            // Remove from manual list
+            rooms[roomId].users = rooms[roomId].users.filter(id => id !== socket.id);
+
+            const userCount = rooms[roomId].users.length;
             io.to(roomId).emit('update_user_count', userCount);
+
+            // Allow DB cleanup or other logic if empty?
+            // if (userCount === 0) delete rooms[roomId]; 
         }
     });
 });
