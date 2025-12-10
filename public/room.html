@@ -17,7 +17,12 @@
     <div id="participantList" class="hidden"></div>
     <div id="participantList" class="hidden"></div>
     <div id="userCount" class="hidden"></div>
-    <div id="localPreviewParams" class="hidden"><video id="localVideo" autoplay muted playsinline></video></div>
+    <div id="localPreviewParams"
+        class="hidden fixed bottom-24 right-6 w-56 h-40 bg-black rounded-2xl shadow-2xl border-2 border-white/20 z-50 overflow-hidden group">
+        <video id="localVideo" class="w-full h-full object-cover transform -scale-x-100" autoplay muted
+            playsinline></video>
+        <div class="absolute bottom-2 left-2 text-white/50 text-[10px] font-bold uppercase tracking-wider">You</div>
+    </div>
     <!-- End Hidden -->
 
     <div class="flex h-screen p-4 gap-4">
