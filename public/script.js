@@ -464,7 +464,9 @@ const iceServers = {
 
 // Handle new user joining - if we are the streamer, we need to connect to them
 socket.on('user_joined', ({ userId }) => {
+    console.log(`User joined: ${userId}`);
     if (isScreenSharing && screenStream) {
+        console.log(`Initiating connection to new user ${userId}`);
         // We are streaming, so initiate connection to the new user
         const pc = createPeerConnection(userId, true);
         peers[userId] = pc;
@@ -473,9 +475,11 @@ socket.on('user_joined', ({ userId }) => {
 
 // Handle signal (Offer, Answer, ICE Candidate)
 socket.on('signal', async ({ from, signal }) => {
+    console.log(`DEBUG: Received signal type ${signal.type || 'candidate'} from ${from}`);
     let pc = peers[from];
 
     if (!pc) {
+        console.log("DEBUG: Creating new PC for incoming signal");
         // Received a signal from someone we don't have a connection with yet (likely an offer)
         pc = createPeerConnection(from, false);
         peers[from] = pc;
@@ -498,6 +502,7 @@ socket.on('signal', async ({ from, signal }) => {
 });
 
 socket.on('stream_stopped', () => {
+    console.log("Stream stopped event received");
     // If someone else stopped streaming, remove their video
     const screenVideo = document.getElementById('screenShareVideo');
     if (screenVideo) {
@@ -515,6 +520,7 @@ socket.on('stream_stopped', () => {
 });
 
 function createPeerConnection(targetUserId, isInitiator) {
+    console.log(`Creating PeerConnection with ${targetUserId}. Initiator: ${isInitiator}`);
     const pc = new RTCPeerConnection(iceServers);
 
     pc.onicecandidate = (event) => {
@@ -524,33 +530,45 @@ function createPeerConnection(targetUserId, isInitiator) {
     };
 
     pc.ontrack = (event) => {
-        console.log("Received track from", targetUserId);
+        console.log("URGENT DEBUG: Received track from", targetUserId);
 
         // When we receive a track (screen share), display it
-        const playerContainer = document.getElementById('player').parentNode;
+        const playerContainer = document.getElementById('player-wrapper') || document.getElementById('player').parentNode;
 
         // Hide YouTube
         if (document.getElementById('player')) document.getElementById('player').style.display = 'none';
 
         let screenVideo = document.getElementById('screenShareVideo');
         if (!screenVideo) {
+            console.log("Creating new screenShareVideo element");
             screenVideo = document.createElement('video');
             screenVideo.id = 'screenShareVideo';
             screenVideo.className = 'w-full h-full object-contain bg-black';
             screenVideo.autoplay = true;
             screenVideo.playsInline = true;
+            screenVideo.muted = true; // IMPORTANT: Mute to allow autoplay
             playerContainer.appendChild(screenVideo);
+
+            // Add click to unmute helper
+            screenVideo.onclick = () => {
+                screenVideo.muted = !screenVideo.muted;
+                console.log("Toggled Mute:", screenVideo.muted);
+            };
         }
 
         screenVideo.srcObject = event.streams[0];
         screenVideo.style.display = 'block';
+
+        screenVideo.play().catch(e => console.error("Auto-Play Error:", e));
     };
 
     if (isInitiator && screenStream) {
+        console.log("Adding local tracks to PC");
         screenStream.getTracks().forEach(track => pc.addTrack(track, screenStream));
     }
 
     if (isInitiator) {
+        console.log("Creating Offer");
         // Create Offer
         pc.createOffer().then(offer => {
             return pc.setLocalDescription(offer);
