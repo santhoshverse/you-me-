@@ -340,25 +340,9 @@ async function toggleScreenShare() {
             // Notify server we are streaming
             socket.emit('start_stream', { roomId });
 
-            // Note: We don't have a list of all OTHER users readily available in state without tracking them.
-            // But the backend knows who is in the room. 
-            // APPROACH: We need the other users to "request request" or we broadcast offers.
-            // Better MVP: When we start streaming, we can't easily iterate all peers unless we tracked 'user_joined' since beginning 
-            // OR we ask the server for a list of connected users.
-            // Let's implement a "request_feed" listener for late-joiners/existing-peers pattern, OR:
-            // Simplest: The server knows everyone.
-            // Let's modify toggleScreenShare to just set state.
-            // AND ALSO: We need a mechanism to connect to ALREADY present users. 
-            // Since we don't have a user list in `peers`, we can ask the server "who is here?"
-            // OR simpler: broadcast a "hello I am streaming" which 'start_stream' does.
-            // Listeners to 'stream_started' (which backend broadcasts) should initiate the connection?
-            // Actually, usually the Streamer initiates offers.
-            // Hybrid: 
-            // 1. Streamer emits 'start_stream'.
-            // 2. Others receive 'stream_started' (with streamerId).
-            // 3. Others emit 'request_feed' { to: streamerId }
-            // 4. Streamer receives 'request_feed', creates PeerConnection, adds tracks, sends Offer.
-
+            // Note: We rely on 'user_joined' to connect to NEW users.
+            // For EXISTING users, the server broadcasts 'stream_started', and THEY must request the feed.
+            // This is the most reliable initiator pattern for Mesh.
 
             // Handle stream stop (user clicks "Stop Sharing" in browser UI)
             stream.getVideoTracks()[0].onended = () => {
@@ -384,14 +368,16 @@ function stopScreenShare() {
     }
 
     // Close all peer connections?
+    // In Mesh, keeping connections open is fine, but closing them cleans up resources.
     Object.values(peers).forEach(pc => pc.close());
+    // Clear peers object
     for (let key in peers) delete peers[key];
 
     // UI Cleanup
     const screenVideo = document.getElementById('screenShareVideo');
     if (screenVideo) {
         screenVideo.srcObject = null;
-        screenVideo.style.display = 'none'; // Or remove it
+        screenVideo.remove();
     }
 
     // Show YouTube Player back
@@ -404,15 +390,16 @@ function stopScreenShare() {
 // Listen for when someone ELSE starts streaming
 socket.on('stream_started', ({ streamerId }) => {
     // We want to see it!
-    // Ask for the feed
+    // Ask for the feed - this tells the streamer to initiate a connection with US
     console.log('Stream started by', streamerId, 'requesting feed...');
     socket.emit('request_feed', { to: streamerId, from: socket.id });
 });
 
-// Streamer responds to request
+// Streamer responds to request - THIS creates the Offer
 socket.on('request_feed', ({ from }) => {
     if (isScreenSharing && screenStream) {
         console.log('Received request for feed from', from);
+        // Create a PC for this specific peer
         const pc = createPeerConnection(from, true); // true = initiator (we send offer)
         peers[from] = pc;
     }
@@ -465,12 +452,27 @@ const iceServers = {
 // Handle new user joining - if we are the streamer, we need to connect to them
 socket.on('user_joined', ({ userId }) => {
     console.log(`User joined: ${userId}`);
+    // Update count UI
+    const countEl = document.getElementById('userCount');
+    if (countEl) countEl.innerText = parseInt(countEl.innerText) + 1;
+
     if (isScreenSharing && screenStream) {
         console.log(`Initiating connection to new user ${userId}`);
         // We are streaming, so initiate connection to the new user
+        // Create PC specifically for this user
         const pc = createPeerConnection(userId, true);
         peers[userId] = pc;
     }
+});
+
+socket.on('user_left', ({ userId }) => {
+    if (peers[userId]) {
+        peers[userId].close();
+        delete peers[userId];
+    }
+    // Update count UI
+    const countEl = document.getElementById('userCount');
+    if (countEl) countEl.innerText = Math.max(1, parseInt(countEl.innerText) - 1);
 });
 
 // Handle signal (Offer, Answer, ICE Candidate)
@@ -478,9 +480,9 @@ socket.on('signal', async ({ from, signal }) => {
     console.log(`DEBUG: Received signal type ${signal.type || 'candidate'} from ${from}`);
     let pc = peers[from];
 
+    // If we receive an offer from someone we don't have a PC with, create one (we are receiver)
     if (!pc) {
         console.log("DEBUG: Creating new PC for incoming signal");
-        // Received a signal from someone we don't have a connection with yet (likely an offer)
         pc = createPeerConnection(from, false);
         peers[from] = pc;
     }
