@@ -6,14 +6,21 @@ const socket = io(socketUrl);
 
 // Robust Room ID extraction (Supports both /room/:id and room.html?id=:id)
 function getRoomId() {
-    // 1. Check path (e.g., /room/123)
-    const pathParts = window.location.pathname.split('/');
-    if (pathParts[1] === 'room' && pathParts[2]) {
-        return pathParts[2];
-    }
-    // 2. Check query param (e.g., room.html?id=123)
+    // 1. Check query param first (e.g., room.html?id=123)
     const params = new URLSearchParams(window.location.search);
-    return params.get('id');
+    if (params.get('id')) {
+        return params.get('id');
+    }
+
+    // 2. Check path (e.g., /room/123 or /app/room/123)
+    const pathParts = window.location.pathname.split('/');
+    const roomIndex = pathParts.indexOf('room');
+
+    if (roomIndex !== -1 && pathParts[roomIndex + 1]) {
+        return pathParts[roomIndex + 1];
+    }
+
+    return null;
 }
 
 const roomId = getRoomId();
