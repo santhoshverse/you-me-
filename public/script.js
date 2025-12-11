@@ -61,7 +61,8 @@ socket.on('play', ({ mediaTime }) => {
             player.seekTo(mediaTime);
         }
         player.playVideo();
-        setTimeout(() => isTimeSyncing = false, 500);
+        // FEEDBACK FIX: Increase timeout to ensure player has settled
+        setTimeout(() => isTimeSyncing = false, 1500);
     }
 });
 
@@ -70,7 +71,7 @@ socket.on('pause', ({ mediaTime }) => {
         isTimeSyncing = true;
         player.seekTo(mediaTime);
         player.pauseVideo();
-        setTimeout(() => isTimeSyncing = false, 500);
+        setTimeout(() => isTimeSyncing = false, 1500);
     }
 });
 
@@ -78,7 +79,7 @@ socket.on('seek', ({ mediaTime }) => {
     if (player && player.seekTo) {
         isTimeSyncing = true;
         player.seekTo(mediaTime);
-        setTimeout(() => isTimeSyncing = false, 500);
+        setTimeout(() => isTimeSyncing = false, 1500);
     }
 });
 
@@ -192,17 +193,29 @@ function onPlayerError(event) {
     }
 }
 
+let lastStateChange = 0;
+
 function onPlayerStateChange(event) {
     if (isTimeSyncing) return;
+
+    // DEBOUNCE: Ignore rapid state changes (e.g., seeking triggers pause -> play)
+    const now = Date.now();
+    if (now - lastStateChange < 500) return;
+    lastStateChange = now;
 
     const time = player.getCurrentTime();
 
     if (event.data === YT.PlayerState.PLAYING) {
         socket.emit('play', { roomId, mediaTime: time });
     } else if (event.data === YT.PlayerState.PAUSED) {
-        socket.emit('pause', { roomId, mediaTime: time });
+        // Double check it's not actually buffering
+        // Sometimes seeking triggers a brief PAUSE then BUFFERING
+        setTimeout(() => {
+            if (player.getPlayerState() === YT.PlayerState.PAUSED && !isTimeSyncing) {
+                socket.emit('pause', { roomId, mediaTime: player.getCurrentTime() });
+            }
+        }, 200);
     }
-    // Buffering/Ended logic omitted for MVP
 }
 
 // --- Media Sync Handler ---
