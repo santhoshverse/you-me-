@@ -205,21 +205,53 @@ function onPlayerStateChange(event) {
     // Buffering/Ended logic omitted for MVP
 }
 
+// --- Media Sync Handler ---
+socket.on('change_media', ({ type, url }) => {
+    console.log(`Received Media Change: ${type} - ${url}`);
+
+    // Hide Placeholder
+    if (document.getElementById('placeholder')) document.getElementById('placeholder').style.display = 'none';
+    // Close any local modals
+    document.getElementById('urlInputDiv').classList.add('hidden');
+    document.getElementById('webInputDiv').classList.add('hidden');
+
+    if (type === 'youtube') {
+        const videoId = extractVideoId(url);
+        // Only re-init if different
+        if (player && player.getVideoData && player.getVideoData().video_id === videoId) {
+            // Already playing this video, maybe just ensure visible
+        } else {
+            initVideo(url);
+        }
+
+        // Show Player, Hide WebFrame
+        document.getElementById('websiteFrame').classList.add('hidden');
+        if (document.getElementById('player')) document.getElementById('player').style.display = 'block';
+
+    } else if (type === 'website') {
+        // Hide YouTube
+        if (document.getElementById('player')) document.getElementById('player').style.display = 'none';
+        if (player && player.stopVideo) player.stopVideo();
+
+        // Show Website
+        const frame = document.getElementById('websiteFrame');
+        frame.classList.remove('hidden');
+        frame.src = url;
+    }
+});
+
 function loadVideo(e) {
     e.preventDefault();
     const url = document.getElementById('videoUrlInput').value;
-    // Emit new video URL to server (needs backend support, adding for MVP completeness)
-    // For now locally init:
-    initVideo(url);
 
-    // Hide website frame if visible
-    document.getElementById('websiteFrame').classList.add('hidden');
-    if (document.getElementById('player')) document.getElementById('player').style.display = 'block';
+    // Emit to server to sync everyone
+    socket.emit('change_media', { roomId, type: 'youtube', url });
 
-    // Hide placeholder
-    if (document.getElementById('placeholder')) document.getElementById('placeholder').style.display = 'none';
+    // Optional: Optimistically load locally too, but the broadcast listener handles it anyway.
+    // Let's rely on broadcast to confirm server receipt, or do both for speed. 
+    // Doing both safe due to check in listener.
+    // initVideo(url); // Commented out to rely on server echo for verification of 'connected' state
 
-    // Close the popup
     document.getElementById('urlInputDiv').classList.add('hidden');
 }
 
@@ -232,19 +264,9 @@ function loadWebsite(e) {
         url = 'https://' + url;
     }
 
-    // Hide YouTube Player
-    if (document.getElementById('player')) document.getElementById('player').style.display = 'none';
-    if (player && player.stopVideo) player.stopVideo();
+    // Emit to server
+    socket.emit('change_media', { roomId, type: 'website', url });
 
-    // Show Website Frame
-    const frame = document.getElementById('websiteFrame');
-    frame.classList.remove('hidden');
-    frame.src = url;
-
-    // Send to chat for others
-    addMessageToUI({ user: 'System', text: `Loaded Website: ${url}`, createdAt: new Date().toISOString() });
-
-    // Close the popup
     document.getElementById('webInputDiv').classList.add('hidden');
 }
 
@@ -700,6 +722,14 @@ function copyInvite() {
 socket.on('connect', () => {
     document.getElementById('appVersion').innerText = 'v2.8 (Connected)';
     document.getElementById('appVersion').classList.add('text-green-600', 'border-green-300');
+    document.getElementById('appVersion').classList.remove('text-red-600', 'border-red-300'); // Clean up red
+
+    // Hide Disconnect Modal
+    document.getElementById('disconnectModal').classList.add('hidden');
+    // Reset Button
+    document.getElementById('reconnectSpinner').classList.add('hidden');
+    document.getElementById('reconnectBtn').removeAttribute('disabled');
+
     console.log("Connected! Joining room:", roomId);
     socket.emit('join_room', roomId);
 });
@@ -708,7 +738,29 @@ socket.on('disconnect', () => {
     document.getElementById('appVersion').innerText = 'v2.8 (Disconnected)';
     document.getElementById('appVersion').classList.remove('text-green-600', 'border-green-300');
     document.getElementById('appVersion').classList.add('text-red-600', 'border-red-300');
+
+    // Show Disconnect Modal
+    document.getElementById('disconnectModal').classList.remove('hidden');
 });
+
+function reconnectServer() {
+    const btn = document.getElementById('reconnectBtn');
+    const spinner = document.getElementById('reconnectSpinner');
+
+    btn.setAttribute('disabled', 'true');
+    spinner.classList.remove('hidden');
+
+    console.log("Attempting manual reconnect...");
+    socket.connect();
+
+    // Re-enable button after timeout if potential failure
+    setTimeout(() => {
+        if (!socket.connected) {
+            btn.removeAttribute('disabled');
+            spinner.classList.add('hidden');
+        }
+    }, 5000);
+}
 
 // Trigger initial join if already connected (rare race condition but safe)
 if (socket.connected) {

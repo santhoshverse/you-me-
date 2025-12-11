@@ -118,6 +118,25 @@ io.on('connection', (socket) => {
         }
     });
 
+    socket.on('change_media', ({ roomId, type, url }) => {
+        console.log(`Media Changed in Room ${roomId}: ${type} - ${url}`);
+        if (rooms[roomId]) {
+            rooms[roomId].currentMedia = { type, url };
+            // Reset playback state for new media
+            rooms[roomId].playback = {
+                isPlaying: true, // Auto-play new media
+                currentTime: 0,
+                timestamp: Date.now()
+            };
+
+            // Broadcast to everyone (including sender, to confirm receipt if needed, 
+            // but usually sender handles their own UI immediately for responsiveness. 
+            // Better to broadcast to *others* and let sender handle local, OR broadcast to all for strict sync.
+            // Let's broadcast to ALL to ensure perfect state sync, even if it causes a re-init on sender (can check if url matches).)
+            io.to(roomId).emit('change_media', { type, url });
+        }
+    });
+
     socket.on('chat_message', async ({ roomId, text, user }) => {
         const timestamp = new Date().toISOString();
 

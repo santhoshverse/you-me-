@@ -15,13 +15,36 @@
     <!-- Hidden DOM Elements for Script Compatibility -->
     <input type="file" id="localFileInput" accept="video/*,audio/*" class="hidden" onchange="handleLocalFile(this)">
     <div id="participantList" class="hidden"></div>
-    <div id="participantList" class="hidden"></div>
+    <!-- Removed duplicate participantList id -->
     <div id="userCount" class="hidden"></div>
     <div id="localPreviewParams"
         class="hidden fixed bottom-24 right-6 w-56 h-40 bg-black rounded-2xl shadow-2xl border-2 border-white/20 z-50 overflow-hidden group">
         <video id="localVideo" class="w-full h-full object-cover transform -scale-x-100" autoplay muted
             playsinline></video>
         <div class="absolute bottom-2 left-2 text-white/50 text-[10px] font-bold uppercase tracking-wider">You</div>
+    </div>
+    <!-- Disconnected Overlay -->
+    <div id="disconnectModal"
+        class="hidden fixed inset-0 z-[100] bg-slate-900/90 backdrop-blur-sm flex flex-col items-center justify-center text-center p-6 animate-in fade-in duration-300">
+        <div class="bg-white p-8 rounded-3xl shadow-2xl max-w-sm w-full transform scale-100 transition-all">
+            <div class="w-20 h-20 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-6">
+                <span class="text-4xl">⚠️</span>
+            </div>
+            <h2 class="text-2xl font-bold text-slate-800 mb-2">Connection Lost</h2>
+            <p class="text-slate-500 mb-8">We lost contact with the server. <br />Checking connection...</p>
+
+            <button onclick="reconnectServer()" id="reconnectBtn"
+                class="w-full py-4 bg-red-500 hover:bg-red-600 active:bg-red-700 text-white font-bold rounded-xl shadow-lg shadow-red-500/30 transition-all flex items-center justify-center gap-2 group">
+                <svg class="animate-spin -ml-1 mr-3 h-5 w-5 text-white hidden" id="reconnectSpinner"
+                    xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor"
+                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z">
+                    </path>
+                </svg>
+                <span>Try Reconnecting</span>
+            </button>
+        </div>
     </div>
     <!-- End Hidden -->
 
