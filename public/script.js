@@ -215,23 +215,44 @@ socket.on('change_media', ({ type, url }) => {
     document.getElementById('urlInputDiv').classList.add('hidden');
     document.getElementById('webInputDiv').classList.add('hidden');
 
+    // Helper to stop all other media
+    function stopAllMedia() {
+        // Stop YouTube
+        if (player && player.stopVideo) {
+            try { player.stopVideo(); } catch (e) { }
+        }
+
+        // Stop Local Player
+        const localPlayer = document.getElementById('localMediaPlayer');
+        if (localPlayer) {
+            localPlayer.pause();
+            localPlayer.style.display = 'none';
+        }
+
+        // Stop Screen Share
+        if (isScreenSharing) stopScreenShare();
+
+        // Stop Website (hide)
+        document.getElementById('websiteFrame').classList.add('hidden');
+        // Hide YouTube Container
+        if (document.getElementById('player')) document.getElementById('player').style.display = 'none';
+    }
+
     if (type === 'youtube') {
+        stopAllMedia(); // Reset everything
+
         const videoId = extractVideoId(url);
         // Only re-init if different
         if (player && player.getVideoData && player.getVideoData().video_id === videoId) {
-            // Already playing this video, maybe just ensure visible
+            // Already playing this video
         } else {
             initVideo(url);
         }
 
-        // Show Player, Hide WebFrame
-        document.getElementById('websiteFrame').classList.add('hidden');
         if (document.getElementById('player')) document.getElementById('player').style.display = 'block';
 
     } else if (type === 'website') {
-        // Hide YouTube
-        if (document.getElementById('player')) document.getElementById('player').style.display = 'none';
-        if (player && player.stopVideo) player.stopVideo();
+        stopAllMedia(); // Reset everything
 
         // Show Website
         const frame = document.getElementById('websiteFrame');
@@ -244,13 +265,12 @@ function loadVideo(e) {
     e.preventDefault();
     const url = document.getElementById('videoUrlInput').value;
 
+    // Stop local playback immediately for responsiveness
+    const localPlayer = document.getElementById('localMediaPlayer');
+    if (localPlayer) localPlayer.pause();
+
     // Emit to server to sync everyone
     socket.emit('change_media', { roomId, type: 'youtube', url });
-
-    // Optional: Optimistically load locally too, but the broadcast listener handles it anyway.
-    // Let's rely on broadcast to confirm server receipt, or do both for speed. 
-    // Doing both safe due to check in listener.
-    // initVideo(url); // Commented out to rely on server echo for verification of 'connected' state
 
     document.getElementById('urlInputDiv').classList.add('hidden');
 }
@@ -263,6 +283,11 @@ function loadWebsite(e) {
     if (!url.startsWith('http')) {
         url = 'https://' + url;
     }
+
+    // Stop YouTube/Local immediately
+    if (player && player.stopVideo) player.stopVideo();
+    const localPlayer = document.getElementById('localMediaPlayer');
+    if (localPlayer) localPlayer.pause();
 
     // Emit to server
     socket.emit('change_media', { roomId, type: 'website', url });
@@ -656,6 +681,9 @@ function handleLocalFile(input) {
     const file = input.files[0];
     if (file) {
         const fileURL = URL.createObjectURL(file);
+
+        // Explicitly stop other media
+        if (player && player.stopVideo) player.stopVideo();
 
         // Replace player content with standard video tag
         const playerContainer = document.getElementById('player').parentNode;
