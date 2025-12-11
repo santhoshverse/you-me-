@@ -660,12 +660,13 @@ function handleLocalFile(input) {
         // Replace player content with standard video tag
         const playerContainer = document.getElementById('player').parentNode;
 
-        // Remove Screen Share if active
+        // Remove Screen Share if active (clean up previous)
         if (isScreenSharing) stopScreenShare();
 
         // Hide YouTube
         if (document.getElementById('player')) document.getElementById('player').style.display = 'none';
         if (document.getElementById('placeholder')) document.getElementById('placeholder').style.display = 'none';
+        document.getElementById('websiteFrame').classList.add('hidden');
 
         // Create or reuse local player
         let localPlayer = document.getElementById('localMediaPlayer');
@@ -674,15 +675,46 @@ function handleLocalFile(input) {
             localPlayer.id = 'localMediaPlayer';
             localPlayer.className = 'w-full h-full object-contain';
             localPlayer.controls = true;
+            localPlayer.playsInline = true; // Important for stream capture
+            // Cross-origin stuff usually not needed for local glob URL but good practice
+            localPlayer.crossOrigin = "anonymous";
             playerContainer.appendChild(localPlayer);
         }
 
         localPlayer.style.display = 'block';
         localPlayer.src = fileURL;
-        localPlayer.play();
 
-        // Notify chat (MVP: syncing local files requires P2P streaming which is complex, just playing locally for now)
-        addMessageToUI({ user: 'System', text: `Loaded local file: ${file.name} (Only visible to you)`, createdAt: new Date().toISOString() });
+        // Wait for metadata to ensure stream capture works
+        localPlayer.onloadedmetadata = () => {
+            localPlayer.play();
+
+            // STREAMING LOGIC
+            try {
+                // Capture stream from video element (30 FPS)
+                // Firefox: mozCaptureStream, fast: captureStream
+                const stream = localPlayer.captureStream ? localPlayer.captureStream(30) : localPlayer.mozCaptureStream(30);
+
+                console.log("Captured Local Stream:", stream);
+
+                // Reuse Screen Share logic to broadcast this stream!
+                screenStream = stream;
+                isScreenSharing = true; // It effectively is for the network
+
+                // Notify server we are streaming (using same event as screen share)
+                socket.emit('start_stream', { roomId });
+
+                // Handle stream stop (when video ends or user changes)
+                stream.getVideoTracks()[0].onended = () => {
+                    // Optional clean up
+                };
+
+                addMessageToUI({ user: 'System', text: `Streaming local file: ${file.name}`, createdAt: new Date().toISOString() });
+
+            } catch (e) {
+                console.error("Error capturing stream:", e);
+                alert("Your browser does not support streaming local files.");
+            }
+        };
     }
 }
 
