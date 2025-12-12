@@ -1,7 +1,7 @@
 import React, { useRef, useState } from 'react';
 import ReactPlayer from 'react-player';
 
-const Player = ({ url, playing, onPlay, onPause, onSeek, onProgress }) => {
+const Player = ({ url, playing, seekToTime, onPlay, onPause, onSeek, onProgress }) => {
     const playerRef = useRef(null);
     const [seeking, setSeeking] = useState(false);
 
@@ -9,6 +9,16 @@ const Player = ({ url, playing, onPlay, onPause, onSeek, onProgress }) => {
     const getCurrentTime = () => {
         return playerRef.current ? playerRef.current.getCurrentTime() : 0;
     };
+
+    // Handle remote seek
+    useEffect(() => {
+        if (seekToTime !== null && playerRef.current) {
+            const current = playerRef.current.getCurrentTime();
+            if (Math.abs(current - seekToTime) > 1) { // Only seek if difference is significant
+                playerRef.current.seekTo(seekToTime);
+            }
+        }
+    }, [seekToTime]);
 
     const handlePlay = () => onPlay(getCurrentTime());
     const handlePause = () => onPause(getCurrentTime());
@@ -28,6 +38,7 @@ const Player = ({ url, playing, onPlay, onPause, onSeek, onProgress }) => {
                 controls={true}
                 onPlay={handlePlay}
                 onPause={handlePause}
+                onSeek={(e) => onSeek && onSeek(e)}
                 progressInterval={1000}
                 onProgress={(state) => {
                     if (!seeking && onProgress) {

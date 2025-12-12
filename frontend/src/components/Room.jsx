@@ -15,6 +15,7 @@ const Room = () => {
     const [messages, setMessages] = useState([]);
     const [username, setUsername] = useState('');
     const [copied, setCopied] = useState(false);
+    const [seekTime, setSeekTime] = useState(null);
 
     // Prompt for username if not present
     useEffect(() => {
@@ -42,7 +43,10 @@ const Room = () => {
             setUrl(url);
             setPlaying(true);
         });
-        s.on('seek', () => { /* Handle seek if needed */ });
+
+        s.on('seek', ({ mediaTime }) => {
+            setSeekTime(mediaTime);
+        });
 
         s.on('chat_message', (msg) => {
             setMessages((prev) => [...prev, msg]);
@@ -149,6 +153,7 @@ const Room = () => {
                             <Player
                                 url={url}
                                 playing={playing}
+                                seekToTime={seekTime}
                                 onPlay={handlePlay}
                                 onPause={handlePause}
                                 onSeek={handleSeek}
