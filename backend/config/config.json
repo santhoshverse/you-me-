@@ -1,0 +1,19 @@
+{
+    "development": {
+        "username": "root",
+        "password": "Root@2715",
+        "database": "w2g",
+        "host": "127.0.0.1",
+        "dialect": "mysql"
+    },
+    "production": {
+        "use_env_variable": "MYSQL_URL",
+        "dialect": "mysql",
+        "dialectOptions": {
+            "ssl": {
+                "require": true,
+                "rejectUnauthorized": false
+            }
+        }
+    }
+}
