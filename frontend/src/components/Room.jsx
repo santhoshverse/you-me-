@@ -124,8 +124,11 @@ const Room = () => {
 
             // We will modify handle: 'signal' arg will be the wrapper { candidate/sdp, isScreenPeer }
 
-            const isScreenPeer = signal.isScreenPeer;
+            // Unpack isScreenPeer from the signal object (it was packed inside to pass through backend)
+            const isScreenPeer = signal.isScreenPeer || false;
             const peerId = isScreenPeer ? `${from}-screen` : from;
+
+            console.log('Signal Received:', { from, type: signal.type || 'candidate', isScreenPeer, peerId });
 
             // If Screen Share Viewer (initiated by request_feed), we used a special ID?
             // In 'request_feed' below, we used `createPeer` with distinct ID logic?
@@ -149,15 +152,15 @@ const Room = () => {
             if (peer) {
                 if (signal.candidate) {
                     await peer.addIceCandidate(new RTCIceCandidate(signal.candidate));
-                } else if (signal.sdp) {
-                    await peer.setRemoteDescription(new RTCSessionDescription(signal.sdp));
-                    if (signal.sdp.type === 'offer') {
+                } else if (signal.type === 'offer' || signal.type === 'answer') { // Check type directly as we spread it
+                    await peer.setRemoteDescription(new RTCSessionDescription(signal));
+                    if (signal.type === 'offer') {
                         const answer = await peer.createAnswer();
                         await peer.setLocalDescription(answer);
                         s.emit('signal', {
                             to: from,
                             from: s.id,
-                            signal: { sdp: peer.localDescription, isScreenPeer }
+                            signal: { ...peer.localDescription, isScreenPeer }
                         });
                     }
                 }
@@ -265,8 +268,7 @@ const Room = () => {
                 socket.emit('signal', {
                     to: targetId,
                     from: socket.id,
-                    signal: { candidate: event.candidate },
-                    isScreenPeer
+                    signal: { candidate: event.candidate, isScreenPeer }
                 });
             }
         };
@@ -288,15 +290,15 @@ const Room = () => {
         };
 
         peer.onnegotiationneeded = async () => {
-            if (!initiator) return; // Only initiator creates offer on renegotiation usually
+            // if (!initiator) return; // Allow both sides to negotiate to support bi-directional media changes (e.g. turning cam on later)
+            // Risk: Glare. For MVP, we accept this risk.
             try {
                 const offer = await peer.createOffer();
                 await peer.setLocalDescription(offer);
                 socket.emit('signal', {
                     to: targetId,
                     from: socket.id,
-                    signal: { sdp: peer.localDescription },
-                    isScreenPeer
+                    signal: { ...peer.localDescription, isScreenPeer }
                 });
             } catch (err) {
                 console.error(err);
