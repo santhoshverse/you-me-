@@ -6,7 +6,7 @@ function App() {
   return (
     <Router>
       <Routes>
-        <Route path="/" element={<Home />} />
+        <Route path="/" element={<Navigate to={`/room/${Math.random().toString(36).substr(2, 9)}`} replace />} />
         <Route path="/room/:roomId" element={<CouchRoom />} />
         {/* Catch all redirect to home */}
         <Route path="*" element={<Navigate to="/" replace />} />
