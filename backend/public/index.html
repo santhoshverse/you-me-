@@ -2,113 +2,16 @@
 <html lang="en">
 
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>you&me - Watch Together</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link rel="stylesheet" href="/style.css">
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/uuid/8.3.2/uuid.min.js"></script>
-    <script src="/socket.io/socket.io.js"></script>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>you&me</title>
+  <script type="module" crossorigin src="/assets/index-DJT0GtB8.js"></script>
+  <link rel="stylesheet" crossorigin href="/assets/index-BsXlzYNP.css">
 </head>
 
-<body
-    class="flex items-center justify-center p-4 min-h-screen bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500">
-
-    <div class="max-w-4xl w-full grid md:grid-cols-2 gap-8 items-center">
-        <!-- Left: Hero -->
-        <div class="space-y-6 text-center md:text-left">
-            <h1 class="text-6xl font-bold text-white drop-shadow-sm">
-                you<span class="text-indigo-900">&</span>me
-            </h1>
-            <p class="text-xl text-white/90 font-medium">
-                Watch videos, listen to music, and hang out with friends in perfect sync.
-            </p>
-
-            <div
-                class="glass-panel p-8 space-y-6 bg-white/20 backdrop-blur-md rounded-3xl border border-white/30 shadow-2xl">
-                <button onclick="createRoom()"
-                    class="w-full py-4 bg-indigo-600 hover:bg-indigo-700 text-white text-lg font-bold rounded-xl shadow-lg hover:shadow-xl transition-all transform hover:-translate-y-1 activity-ring border border-indigo-500/50">
-                    ✨ Create & Join Room
-                </button>
-
-                <div class="relative">
-                    <div class="absolute inset-0 flex items-center">
-                        <div class="w-full border-t border-white/30"></div>
-                    </div>
-                    <div class="relative flex justify-center text-sm">
-                        <span class="px-2 bg-transparent text-white/70">or join existing</span>
-                    </div>
-                </div>
-
-                <div class="flex gap-2">
-                    <input type="text" id="roomIdInput" placeholder="Enter Room ID..."
-                        class="flex-1 px-4 py-3 rounded-xl border border-white/30 bg-white/20 text-white placeholder-white/60 focus:outline-none focus:ring-2 focus:ring-indigo-300">
-                    <button onclick="joinRoom()"
-                        class="px-6 py-3 bg-white text-indigo-600 font-bold rounded-xl hover:bg-gray-100 shadow-md transition-colors">
-                        Join
-                    </button>
-                </div>
-            </div>
-        </div>
-
-        <!-- Right: Feature Cards -->
-        <div class="hidden md:grid grid-cols-2 gap-4">
-            <div
-                class="bg-white/10 backdrop-blur-md p-6 rounded-2xl border border-white/20 flex flex-col items-center text-center gap-3 transform hover:scale-105 transition-transform shadow-lg">
-                <div class="text-4xl">🎥</div>
-                <h3 class="font-bold text-white">Sync Watch</h3>
-                <p class="text-sm text-white/80">YouTube, Vimeo, & more in perfect harmony.</p>
-            </div>
-            <div
-                class="bg-white/10 backdrop-blur-md p-6 rounded-2xl border border-white/20 flex flex-col items-center text-center gap-3 transform hover:scale-105 transition-transform mt-8 shadow-lg">
-                <div class="text-4xl">💬</div>
-                <h3 class="font-bold text-white">Real-time Chat</h3>
-                <p class="text-sm text-white/80">Message friends while you watch.</p>
-            </div>
-            <div
-                class="bg-white/10 backdrop-blur-md p-6 rounded-2xl border border-white/20 flex flex-col items-center text-center gap-3 transform hover:scale-105 transition-transform shadow-lg">
-                <div class="text-4xl"></div>
-                <h3 class="font-bold text-white">Video Chat</h3>
-                <p class="text-sm text-white/80">See and hear your friends live.</p>
-            </div>
-            <div
-                class="bg-white/10 backdrop-blur-md p-6 rounded-2xl border border-white/20 flex flex-col items-center text-center gap-3 transform hover:scale-105 transition-transform mt-8 shadow-lg">
-                <div class="text-4xl">🎨</div>
-                <h3 class="font-bold text-white">Modern UI</h3>
-                <p class="text-sm text-white/80">Beautiful glassmorphism design.</p>
-            </div>
-        </div>
-    </div>
-
-
-
-    <script>
-
-
-        function createRoom() {
-            const roomId = uuid.v4();
-            if (window.location.port === '5500') {
-                // Use relative path for Live Server compatibility
-                window.location.href = `room.html?id=${roomId}`;
-            } else {
-                window.location.href = `/room/${roomId}`;
-            }
-        }
-
-        function joinRoom() {
-            const input = document.getElementById('roomIdInput');
-            const roomId = input ? input.value.trim() : null;
-            if (roomId) {
-                if (window.location.port === '5500') {
-                    window.location.href = `room.html?id=${roomId}`;
-                } else {
-                    window.location.href = `/room/${roomId}`;
-                }
-            } else {
-                alert('Please enter a Room ID');
-            }
-        }
-    </script>
+<body>
+    <div id="root"></div>
 </body>
 
 </html>
