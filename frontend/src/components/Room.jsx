@@ -160,7 +160,11 @@ const Room = () => {
                         s.emit('signal', {
                             to: from,
                             from: s.id,
-                            signal: { ...peer.localDescription, isScreenPeer }
+                            signal: {
+                                type: peer.localDescription.type,
+                                sdp: peer.localDescription.sdp,
+                                isScreenPeer
+                            }
                         });
                     }
                 }
@@ -298,7 +302,11 @@ const Room = () => {
                 socket.emit('signal', {
                     to: targetId,
                     from: socket.id,
-                    signal: { ...peer.localDescription, isScreenPeer }
+                    signal: {
+                        type: peer.localDescription.type,
+                        sdp: peer.localDescription.sdp,
+                        isScreenPeer
+                    }
                 });
             } catch (err) {
                 console.error(err);
