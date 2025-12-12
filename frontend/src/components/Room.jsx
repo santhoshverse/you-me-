@@ -18,16 +18,21 @@ const Room = () => {
     const [seekTime, setSeekTime] = useState(null);
     const [remoteStream, setRemoteStream] = useState(null);
     const [isScreenSharing, setIsScreenSharing] = useState(false);
+    const [participants, setParticipants] = useState([]); // List of { id, name, isLocal, stream }
+    const [localStream, setLocalStream] = useState(null); // Local Cam/Mic stream
 
     // WebRTC Refs
-    const localStreamRef = React.useRef(null);
-    const peersRef = React.useRef({}); // Keep track of peer connections by socket ID
+    const localStreamRef = React.useRef(null); // For Screen Share
+    const localCamStreamRef = React.useRef(null); // For Cam/Mic
+    const peersRef = React.useRef({}); // Store peers: { [socketId]: RTCPeerConnection }
 
     // Prompt for username if not present
     useEffect(() => {
         // Use styled prompt logic in future iteration. For MVP using native prompt.
         const user = prompt('Enter your display name:') || `Guest-${Math.floor(Math.random() * 1000)}`;
         setUsername(user);
+        // Initialize local participant
+        setParticipants([{ id: 'me', name: user, isLocal: true, stream: null }]);
     }, []);
 
     useEffect(() => {
@@ -56,7 +61,21 @@ const Room = () => {
 
 
 
-        // --- WebRTC Listeners ---
+        // --- MESH WebRTC Listeners (User Media) ---
+        s.on('user_joined', ({ userId }) => {
+            console.log('User Joined:', userId);
+            // Initiate connection to new user
+            const peer = createPeer(userId, s, localCamStreamRef.current, true); // true = initiator
+            peersRef.current[userId] = peer;
+
+            // Add to participants list placeholder
+            setParticipants(prev => {
+                if (prev.find(p => p.id === userId)) return prev;
+                return [...prev, { id: userId, name: `User ${userId.slice(0, 4)}`, isLocal: false }];
+            });
+        });
+
+        // --- WebRTC Listeners (Screen Share + User Mesh) ---
         s.on('stream_started', ({ streamerId }) => {
             console.log('Stream started by:', streamerId);
             // Request feed from streamer
@@ -64,39 +83,83 @@ const Room = () => {
         });
 
         s.on('request_feed', async ({ from }) => {
-            // I am the streamer, someone wants my feed
+            // I am the streamer, sender of screen share
             console.log('Received feed request from:', from);
-            const peer = createPeer(from, s, localStreamRef.current);
-            peersRef.current[from] = peer;
+            const peerId = `${from}-screen`;
+            const peer = createPeer(from, s, localStreamRef.current, true, true); // initiator=true, isScreenPeer=true
+            peersRef.current[peerId] = peer;
         });
 
         s.on('signal', async ({ from, signal }) => {
-            const peer = peersRef.current[from];
+            // Determine if this is a Screen Share peer or Mesh peer
+            // Simplified: If we have a peer in memory, use it.
+            // If not, and it's an offer, create new.
+
+            let peer = peersRef.current[from];
+
+            // NOTE: Screen Share peers might need distinct ID if separate connection used.
+            // Current flow uses SAME socket ID for signaling. 
+            // If we want separate connections for Cam vs Screen, we'd need distinct IDs or metadata.
+            // For this quick implementation, let's assume if 'isScreenPeer' flag was sent in signal (logic added below), we'd know.
+            // But 'signal' event from server is { from, signal }.
+            // We need to update backend to pass through extra fields or put them in 'signal' object.
+            // Let's rely on 'signal.type' or similar? No.
+            // Let's just try using the SAME connection for both?
+            // "Sender" logic in createPeer adds tracks.
+            // If I add a screen track to existing peer, 'ontrack' fires.
+            // I can check 'event.track.kind' but video vs video is hard.
+            // checking 'stream.id' is useful if we signaled it.
+
+            // STRATEGY: Use `isScreenPeer` flag in the payload for distinction IF possible.
+            // Or just separate Listeners? 'signal_screen', 'signal_mesh'?
+            // Updating createPeer to send { isScreenPeer } in the wrapper payload.
+
+            // If payload has isScreenPeer (handled in modified createPeer/signal emit below)
+            // But we need to update the Listener to receive it!
+            // 's.on' receives what server emits. Server emits { from, signal }. 
+            // We need to update Server pass-through? Yes or pack it in 'signal'.
+            // Let's pack it in 'signal' for now as a custom field if SDP/Candidate allows, or just wrap it.
+            // Actually, server 'signal' handler: socket.on('signal', ({ to, from, signal })).
+            // It passes 'signal' object through.
+
+            // We will modify handle: 'signal' arg will be the wrapper { candidate/sdp, isScreenPeer }
+
+            const isScreenPeer = signal.isScreenPeer;
+            const peerId = isScreenPeer ? `${from}-screen` : from;
+
+            // If Screen Share Viewer (initiated by request_feed), we used a special ID?
+            // In 'request_feed' below, we used `createPeer` with distinct ID logic?
+            // Let's standardize: Screen Share uses "from-screen" ID for peers.
+
+            peer = peersRef.current[peerId];
+
+            if (!peer && signal.sdp && signal.sdp.type === 'offer') {
+                peer = createPeer(from, s, localCamStreamRef.current, false, isScreenPeer);
+                peersRef.current[peerId] = peer;
+
+                // If Mesh Peer, add to participants
+                if (!isScreenPeer) {
+                    setParticipants(prev => {
+                        if (prev.find(p => p.id === from)) return prev;
+                        return [...prev, { id: from, name: `User ${from.slice(0, 4)}`, isLocal: false }];
+                    });
+                }
+            }
+
             if (peer) {
-                // If we have a peer, it's an answer or candidate
-                await peer.addIceCandidate(new RTCIceCandidate(signal.candidate)); // Simplification: assuming candidate for now. Need robust signal handler.
-                // Wait, signal object structure matters. 
-                if (signal.sdp) {
+                if (signal.candidate) {
+                    await peer.addIceCandidate(new RTCIceCandidate(signal.candidate));
+                } else if (signal.sdp) {
                     await peer.setRemoteDescription(new RTCSessionDescription(signal.sdp));
                     if (signal.sdp.type === 'offer') {
                         const answer = await peer.createAnswer();
                         await peer.setLocalDescription(answer);
-                        s.emit('signal', { to: from, from: s.id, signal: { sdp: peer.localDescription } });
+                        s.emit('signal', {
+                            to: from,
+                            from: s.id,
+                            signal: { sdp: peer.localDescription, isScreenPeer }
+                        });
                     }
-                } else if (signal.candidate) {
-                    await peer.addIceCandidate(new RTCIceCandidate(signal.candidate));
-                }
-            } else {
-                // Incoming Offer (Viewer receives offer from Streamer)
-                if (signal.sdp && signal.sdp.type === 'offer') {
-                    const peer = createPeer(from, s, null); // Viewer has no stream to send usually
-                    peersRef.current[from] = peer;
-
-                    // Handle the offer
-                    await peer.setRemoteDescription(new RTCSessionDescription(signal.sdp));
-                    const answer = await peer.createAnswer();
-                    await peer.setLocalDescription(answer);
-                    s.emit('signal', { to: from, from: s.id, signal: { sdp: peer.localDescription } });
                 }
             }
         });
@@ -136,27 +199,56 @@ const Room = () => {
         setTimeout(() => setCopied(false), 2000);
     };
 
-    const handleMediaChange = async ({ stream, isScreen }) => {
-        console.log('Media Changed:', isScreen, stream);
+    const handleMediaChange = async ({ stream, isScreen, mic, cam }) => {
+        // Handle User Media (Cam/Mic)
+        if (!isScreen) {
+            localCamStreamRef.current = stream;
+            setLocalStream(stream);
+
+            // Update local participant state
+            setParticipants(prev => prev.map(p =>
+                p.isLocal ? { ...p, stream: stream, mic, cam } : p
+            ));
+
+            // Update all existing peers with new tracks
+            Object.values(peersRef.current).forEach(peer => {
+                // Remove old tracks? Not easy.
+                // Replace tracks?
+                // Simple: Add tracks if not present.
+                if (stream) {
+                    stream.getTracks().forEach(track => {
+                        const sender = peer.getSenders().find(s => s.track && s.track.kind === track.kind);
+                        if (sender) {
+                            sender.replaceTrack(track);
+                        } else {
+                            peer.addTrack(track, stream);
+                            // Adding track requires renegotiation... check simple-peer or native
+                            // Native requires renegotiation. 
+                            // For MVP, if connection is already up, this might fail without logic.
+                            // But 'user_joined' trigger creates connection fresh.
+                            // If I toggle cam LATER, I need `onnegotiationneeded`.
+                        }
+                    });
+                }
+            });
+        }
+
+        // Handle Screen Share
         if (isScreen && stream) {
             localStreamRef.current = stream;
             setIsScreenSharing(true);
             socket.emit('start_stream', { roomId });
-        } else {
-            // Stop stream Logic
-            if (isScreenSharing && !stream) {
+        } else if (isScreen && !stream) {
+            if (isScreenSharing) {
                 setIsScreenSharing(false);
                 socket.emit('stop_stream', { roomId });
                 localStreamRef.current = null;
-                // Close all peers
-                Object.values(peersRef.current).forEach(p => p.close());
-                peersRef.current = {};
             }
         }
     };
 
     // Helper to create Peer
-    const createPeer = (targetId, socket, stream) => {
+    const createPeer = (targetId, socket, stream, initiator, isScreenPeer = false) => {
         const peer = new RTCPeerConnection({
             iceServers: [
                 { urls: 'stun:stun.l.google.com:19302' },
@@ -170,28 +262,46 @@ const Room = () => {
 
         peer.onicecandidate = (event) => {
             if (event.candidate) {
-                socket.emit('signal', { to: targetId, from: socket.id, signal: { candidate: event.candidate } });
+                socket.emit('signal', {
+                    to: targetId,
+                    from: socket.id,
+                    signal: { candidate: event.candidate },
+                    isScreenPeer
+                });
             }
         };
 
         peer.ontrack = (event) => {
-            console.log('Received Remote Stream');
-            setRemoteStream(event.streams[0]);
+            console.log('Received Remote Stream', isScreenPeer);
+            if (isScreenPeer) {
+                setRemoteStream(event.streams[0]);
+            } else {
+                // Update participant list
+                setParticipants(prev => {
+                    const exists = prev.find(p => p.id === targetId);
+                    if (exists) {
+                        return prev.map(p => p.id === targetId ? { ...p, stream: event.streams[0] } : p);
+                    }
+                    return [...prev, { id: targetId, name: `User ${targetId.slice(0, 4)}`, isLocal: false, stream: event.streams[0] }];
+                });
+            }
         };
 
-        // If we have a stream (Streamer), we create offer immediately? 
-        // No, flow is: Viewer requests -> Streamer creates peer & offer.
-        if (stream) {
-            peer.onnegotiationneeded = async () => {
-                try {
-                    const offer = await peer.createOffer();
-                    await peer.setLocalDescription(offer);
-                    socket.emit('signal', { to: targetId, from: socket.id, signal: { sdp: peer.localDescription } });
-                } catch (err) {
-                    console.error(err);
-                }
-            };
-        }
+        peer.onnegotiationneeded = async () => {
+            if (!initiator) return; // Only initiator creates offer on renegotiation usually
+            try {
+                const offer = await peer.createOffer();
+                await peer.setLocalDescription(offer);
+                socket.emit('signal', {
+                    to: targetId,
+                    from: socket.id,
+                    signal: { sdp: peer.localDescription },
+                    isScreenPeer
+                });
+            } catch (err) {
+                console.error(err);
+            }
+        };
 
         return peer;
     };
@@ -293,7 +403,7 @@ const Room = () => {
             <div className="w-80 flex flex-col gap-4 shrink-0">
                 {/* Participants (Top Half) */}
                 <div className="h-1/3 min-h-[200px]">
-                    <ParticipantList participants={[{ id: 'me', name: username, isLocal: true, mic: false, cam: false }]} />
+                    <ParticipantList participants={participants} />
                 </div>
 
                 {/* Chat (Bottom Half) */}

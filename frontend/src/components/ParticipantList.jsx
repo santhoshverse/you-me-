@@ -17,9 +17,22 @@ const ParticipantList = ({ participants = [] }) => {
                 {displayList.map((user) => (
                     <div key={user.id} className="flex items-center justify-between p-2 rounded-lg hover:bg-white/50 transition-colors">
                         <div className="flex items-center gap-3">
-                            <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold text-white shadow-sm
-                                ${user.isLocal ? 'bg-indigo-500' : 'bg-pink-500'}`}>
-                                {user.name.charAt(0).toUpperCase()}
+                            <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold text-white shadow-sm overflow-hidden relative ${user.isLocal ? 'bg-indigo-500' : 'bg-pink-500'}`}>
+                                {user.stream ? (
+                                    <video
+                                        autoPlay
+                                        // muted // Mute remote streams here? No, only local. But for this list, maybe mute to avoid echo if audio is handled elsewhere? 
+                                        // Actually, if it's a remote user, we want to hear them. Ideally separate <audio> element or unmuted video.
+                                        // But if I mute it, I can't hear them. 
+                                        // Wait, usually the main audio output comes from these tracks. 
+                                        // Let's mute LOCAL only.
+                                        muted={user.isLocal}
+                                        ref={vid => { if (vid) vid.srcObject = user.stream; }}
+                                        className="w-full h-full object-cover"
+                                    />
+                                ) : (
+                                    user.name.charAt(0).toUpperCase()
+                                )}
                             </div>
                             <span className="font-semibold text-slate-700">
                                 {user.name} {user.isLocal && <span className="text-xs text-gray-400 font-normal">(You)</span>}
