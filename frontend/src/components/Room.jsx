@@ -16,6 +16,12 @@ const Room = () => {
     const [username, setUsername] = useState('');
     const [copied, setCopied] = useState(false);
     const [seekTime, setSeekTime] = useState(null);
+    const [remoteStream, setRemoteStream] = useState(null);
+    const [isScreenSharing, setIsScreenSharing] = useState(false);
+
+    // WebRTC Refs
+    const localStreamRef = React.useRef(null);
+    const peersRef = React.useRef({}); // Keep track of peer connections by socket ID
 
     // Prompt for username if not present
     useEffect(() => {
@@ -48,6 +54,58 @@ const Room = () => {
             setSeekTime(mediaTime);
         });
 
+
+
+        // --- WebRTC Listeners ---
+        s.on('stream_started', ({ streamerId }) => {
+            console.log('Stream started by:', streamerId);
+            // Request feed from streamer
+            s.emit('request_feed', { to: streamerId, from: s.id });
+        });
+
+        s.on('request_feed', async ({ from }) => {
+            // I am the streamer, someone wants my feed
+            console.log('Received feed request from:', from);
+            const peer = createPeer(from, s, localStreamRef.current);
+            peersRef.current[from] = peer;
+        });
+
+        s.on('signal', async ({ from, signal }) => {
+            const peer = peersRef.current[from];
+            if (peer) {
+                // If we have a peer, it's an answer or candidate
+                await peer.addIceCandidate(new RTCIceCandidate(signal.candidate)); // Simplification: assuming candidate for now. Need robust signal handler.
+                // Wait, signal object structure matters. 
+                if (signal.sdp) {
+                    await peer.setRemoteDescription(new RTCSessionDescription(signal.sdp));
+                    if (signal.sdp.type === 'offer') {
+                        const answer = await peer.createAnswer();
+                        await peer.setLocalDescription(answer);
+                        s.emit('signal', { to: from, from: s.id, signal: { sdp: peer.localDescription } });
+                    }
+                } else if (signal.candidate) {
+                    await peer.addIceCandidate(new RTCIceCandidate(signal.candidate));
+                }
+            } else {
+                // Incoming Offer (Viewer receives offer from Streamer)
+                if (signal.sdp && signal.sdp.type === 'offer') {
+                    const peer = createPeer(from, s, null); // Viewer has no stream to send usually
+                    peersRef.current[from] = peer;
+
+                    // Handle the offer
+                    await peer.setRemoteDescription(new RTCSessionDescription(signal.sdp));
+                    const answer = await peer.createAnswer();
+                    await peer.setLocalDescription(answer);
+                    s.emit('signal', { to: from, from: s.id, signal: { sdp: peer.localDescription } });
+                }
+            }
+        });
+
+        s.on('stream_stopped', () => {
+            setRemoteStream(null);
+            // Cleanup peers?
+        });
+
         s.on('chat_message', (msg) => {
             setMessages((prev) => [...prev, msg]);
         });
@@ -78,9 +136,64 @@ const Room = () => {
         setTimeout(() => setCopied(false), 2000);
     };
 
-    const handleMediaChange = (status) => {
-        // Here we would eventually broadcast status to others via socket
-        console.log('Media status changed:', status);
+    const handleMediaChange = async ({ stream, isScreen }) => {
+        console.log('Media Changed:', isScreen, stream);
+        if (isScreen && stream) {
+            localStreamRef.current = stream;
+            setIsScreenSharing(true);
+            socket.emit('start_stream', { roomId });
+        } else {
+            // Stop stream Logic
+            if (isScreenSharing && !stream) {
+                setIsScreenSharing(false);
+                socket.emit('stop_stream', { roomId });
+                localStreamRef.current = null;
+                // Close all peers
+                Object.values(peersRef.current).forEach(p => p.close());
+                peersRef.current = {};
+            }
+        }
+    };
+
+    // Helper to create Peer
+    const createPeer = (targetId, socket, stream) => {
+        const peer = new RTCPeerConnection({
+            iceServers: [
+                { urls: 'stun:stun.l.google.com:19302' },
+                { urls: 'stun:global.stun.twilio.com:3478' }
+            ]
+        });
+
+        if (stream) {
+            stream.getTracks().forEach(track => peer.addTrack(track, stream));
+        }
+
+        peer.onicecandidate = (event) => {
+            if (event.candidate) {
+                socket.emit('signal', { to: targetId, from: socket.id, signal: { candidate: event.candidate } });
+            }
+        };
+
+        peer.ontrack = (event) => {
+            console.log('Received Remote Stream');
+            setRemoteStream(event.streams[0]);
+        };
+
+        // If we have a stream (Streamer), we create offer immediately? 
+        // No, flow is: Viewer requests -> Streamer creates peer & offer.
+        if (stream) {
+            peer.onnegotiationneeded = async () => {
+                try {
+                    const offer = await peer.createOffer();
+                    await peer.setLocalDescription(offer);
+                    socket.emit('signal', { to: targetId, from: socket.id, signal: { sdp: peer.localDescription } });
+                } catch (err) {
+                    console.error(err);
+                }
+            };
+        }
+
+        return peer;
     };
 
     return (
@@ -150,14 +263,27 @@ const Room = () => {
                     <div className="flex-1 bg-black rounded-xl overflow-hidden shadow-inner relative">
                         {/* Player wrapper */}
                         <div className="full-size-player h-full">
-                            <Player
-                                url={url}
-                                playing={playing}
-                                seekToTime={seekTime}
-                                onPlay={handlePlay}
-                                onPause={handlePause}
-                                onSeek={handleSeek}
-                            />
+                            {(remoteStream || isScreenSharing) ? (
+                                <div className="w-full h-full relative">
+                                    <video
+                                        ref={vid => {
+                                            if (vid) vid.srcObject = isScreenSharing ? localStreamRef.current : remoteStream;
+                                        }}
+                                        autoPlay
+                                        playsInline
+                                        className="w-full h-full object-contain"
+                                    />
+                                </div>
+                            ) : (
+                                <Player
+                                    url={url}
+                                    playing={playing}
+                                    seekToTime={seekTime}
+                                    onPlay={handlePlay}
+                                    onPause={handlePause}
+                                    onSeek={handleSeek}
+                                />
+                            )}
                         </div>
                     </div>
                 </div>

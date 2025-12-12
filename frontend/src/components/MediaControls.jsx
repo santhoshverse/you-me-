@@ -45,11 +45,22 @@ const MediaControls = ({ onMediaChange }) => {
             };
 
             if (type === 'mic') constraints.audio = true;
+            if (type === 'mic') constraints.audio = true;
             if (type === 'cam') constraints.video = true;
+
+            let newStream;
+            if (type === 'screen') {
+                newStream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
+            } else {
+                newStream = await navigator.mediaDevices.getUserMedia(constraints);
+            }
 
             // If we already have a stream, we might need to add tracks or just enable them
             // For MVP simplicity: request new stream with desired constraints
-            const newStream = await navigator.mediaDevices.getUserMedia(constraints);
+            if (!newStream && !isMicOn && !isCamOn && type !== 'screen') {
+                // Fallback if logic flow missed
+                newStream = await navigator.mediaDevices.getUserMedia(constraints);
+            }
 
             // Stop old tracks if replacing entire stream
             if (stream) {
@@ -60,10 +71,12 @@ const MediaControls = ({ onMediaChange }) => {
             }
 
             setStream(newStream);
-            if (constraints.audio) setIsMicOn(true);
-            if (constraints.video) setIsCamOn(true);
+            if (type !== 'screen') {
+                if (constraints.audio) setIsMicOn(true);
+                if (constraints.video) setIsCamOn(true);
+            }
 
-            onMediaChange?.({ mic: !!constraints.audio, cam: !!constraints.video, stream: newStream });
+            onMediaChange?.({ mic: !!constraints.audio, cam: !!constraints.video, stream: newStream, isScreen: type === 'screen' });
 
         } catch (err) {
             console.error("Media Error:", err);
@@ -94,6 +107,17 @@ const MediaControls = ({ onMediaChange }) => {
             >
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
                     <path fillRule="evenodd" d="M7 4a3 3 0 016 0v4a3 3 0 11-6 0V4zm4 10.93A7.001 7.001 0 0017 8a1 1 0 10-2 0A5 5 0 015 8a1 1 0 00-2 0 7.001 7.001 0 006 10.93V17H6a1 1 0 100 2h8a1 1 0 100-2h-5v-2.07z" clipRule="evenodd" />
+                </svg>
+            </button>
+
+            {/* Screen Share */}
+            <button
+                onClick={() => toggleMedia('screen')}
+                className="p-3 rounded-full bg-gray-200 text-gray-500 hover:bg-gray-300 transition-all duration-200 shadow-md"
+                title="Share Screen"
+            >
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M3 5a2 2 0 012-2h10a2 2 0 012 2v8a2 2 0 01-2 2h-2.22l.9 1.348a1 1 0 01-.832 1.554h-5.7a1 1 0 01-.832-1.554l.9-1.348H5a2 2 0 01-2-2V5zm2 0v8h10V5H5z" clipRule="evenodd" />
                 </svg>
             </button>
 
