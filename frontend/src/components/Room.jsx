@@ -387,14 +387,57 @@ const Room = () => {
                                     />
                                 </div>
                             ) : (
-                                <Player
-                                    url={url}
-                                    playing={playing}
-                                    seekToTime={seekTime}
-                                    onPlay={handlePlay}
-                                    onPause={handlePause}
-                                    onSeek={handleSeek}
-                                />
+                                url ? (
+                                    <Player
+                                        url={url}
+                                        playing={playing}
+                                        seekToTime={seekTime}
+                                        onPlay={handlePlay}
+                                        onPause={handlePause}
+                                        onSeek={handleSeek}
+                                    />
+                                ) : (
+                                    /* Video Call Grid (if no media playing) */
+                                    <div className="w-full h-full p-4 overflow-y-auto">
+                                        {participants.some(p => p.stream) ? (
+                                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 h-full content-center">
+                                                {participants.map(p => (
+                                                    <div key={p.id} className="relative aspect-video bg-gray-900 rounded-xl overflow-hidden shadow-lg border border-white/10 group">
+                                                        {p.stream ? (
+                                                            <video
+                                                                ref={vid => { if (vid) vid.srcObject = p.stream; }}
+                                                                autoPlay
+                                                                playsInline
+                                                                muted={p.isLocal} // Mute local to avoid echo
+                                                                className="w-full h-full object-cover"
+                                                            />
+                                                        ) : (
+                                                            <div className="w-full h-full flex items-center justify-center bg-gray-800 text-gray-400 font-bold text-2xl">
+                                                                {p.name.charAt(0).toUpperCase()}
+                                                            </div>
+                                                        )}
+                                                        <div className="absolute bottom-2 left-2 px-3 py-1 bg-black/50 backdrop-blur-sm rounded-lg text-white text-sm font-medium">
+                                                            {p.name} {p.isLocal && '(You)'}
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        ) : (
+                                            /* Empty State Placeholder */
+                                            <div className="w-full h-full flex flex-col items-center justify-center text-gray-500 gap-4">
+                                                <div className="w-20 h-20 rounded-2xl bg-white/5 flex items-center justify-center">
+                                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-10 w-10 opacity-50" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 10l4.553-2.276A1 1 0 0121 8.818v6.364a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                                                    </svg>
+                                                </div>
+                                                <div className="text-center">
+                                                    <h3 className="text-lg font-semibold text-slate-400">Ready to join?</h3>
+                                                    <p className="text-sm opacity-60">Turn on your camera to start the call</p>
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                )
                             )}
                         </div>
                     </div>
