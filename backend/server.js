@@ -11,6 +11,11 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
+// Version Check Endpoint
+app.get('/api/version', (req, res) => {
+    res.json({ version: '2.0.0-Production', type: 'MySQL-Sequelize' });
+});
+
 // Serve static files from 'public' directory
 app.use(express.static(path.join(__dirname, 'public')));
 
