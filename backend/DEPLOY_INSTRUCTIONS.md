@@ -25,6 +25,11 @@ I have initialized a Git repository for your **entire project** (both backend an
         ```bash
         cd backend && npm start
         ```
+    *   **Environment Variables:**
+        *   Key: `MYSQL_URL`
+        *   Value: `mysql://USER:PASSWORD@HOST:PORT/DATABASE_NAME` (Get this from your Cloud Database provider)
+        *   Key: `NODE_ENV`
+        *   Value: `production`
 4.  Click **Create Web Service**.
 
 > [!NOTE]

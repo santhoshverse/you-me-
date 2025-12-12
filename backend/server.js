@@ -145,7 +145,7 @@ app.get('*', (req, res) => {
 // Database Sync & Start
 db.sequelize.sync().then(() => {
     server.listen(PORT, () => {
-        console.log(`Signaling Server running on port ${PORT}`);
+        console.log(`Signaling Server running on port ${PORT} (v2 Production)`);
     });
 }).catch(err => {
     console.error('Database sync failed:', err);
