@@ -405,45 +405,60 @@ const Room = () => {
                                         onSeek={handleSeek}
                                     />
                                 ) : (
-                                    /* Video Call Grid (if no media playing) */
-                                    <div className="w-full h-full p-4 overflow-y-auto">
-                                        {participants.some(p => p.stream) ? (
-                                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 h-full content-center">
+                                    /* Virtual Couch Mode */
+                                    <div className="w-full h-full relative overflow-hidden bg-[#1a1130] flex items-end justify-center perspective-1000">
+                                        {/* Background Ambience */}
+                                        <div className="absolute inset-0 bg-gradient-to-b from-[#2a1b4e] to-[#150e26] pointer-events-none" />
+
+                                        {/* The Couch */}
+                                        <div className="relative z-10 w-[90%] max-w-4xl h-[40%] mb-4 md:mb-12 transition-all duration-500">
+                                            {/* Couch Back */}
+                                            <div className="absolute bottom-0 left-0 right-0 top-[-30%] bg-[#5c5423] rounded-[3rem] shadow-2xl transform scale-x-110 origin-bottom" />
+                                            {/* Couch Base */}
+                                            <div className="absolute bottom-0 left-0 right-0 h-full bg-[#4a431c] rounded-[2rem] shadow-xl flex items-end justify-center pb-4 md:pb-8 px-4 gap-4 md:gap-8 overflow-x-auto">
+
+                                                {/* Participants on the Couch */}
                                                 {participants.map(p => (
-                                                    <div key={p.id} className="relative aspect-video bg-gray-900 rounded-xl overflow-hidden shadow-lg border border-white/10 group">
-                                                        {p.stream ? (
-                                                            <video
-                                                                ref={vid => { if (vid) vid.srcObject = p.stream; }}
-                                                                autoPlay
-                                                                playsInline
-                                                                muted={p.isLocal} // Mute local to avoid echo
-                                                                className="w-full h-full object-cover"
-                                                            />
-                                                        ) : (
-                                                            <div className="w-full h-full flex items-center justify-center bg-gray-800 text-gray-400 font-bold text-2xl">
-                                                                {p.name.charAt(0).toUpperCase()}
-                                                            </div>
-                                                        )}
-                                                        <div className="absolute bottom-2 left-2 px-3 py-1 bg-black/50 backdrop-blur-sm rounded-lg text-white text-sm font-medium">
-                                                            {p.name} {p.isLocal && '(You)'}
+                                                    <div key={p.id} className="relative group shrink-0 transition-all duration-300 hover:-translate-y-2">
+                                                        {/* Avatar Circle */}
+                                                        <div className={`w-24 h-24 md:w-32 md:h-32 rounded-full border-4 ${p.isLocal ? 'border-purple-500' : 'border-indigo-500'} overflow-hidden bg-gray-800 shadow-2xl relative`}>
+                                                            {p.stream ? (
+                                                                <video
+                                                                    ref={vid => { if (vid) vid.srcObject = p.stream; }}
+                                                                    autoPlay
+                                                                    playsInline
+                                                                    muted={p.isLocal}
+                                                                    className="w-full h-full object-cover"
+                                                                />
+                                                            ) : (
+                                                                <img
+                                                                    src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${p.name}`}
+                                                                    alt={p.name}
+                                                                    className="w-full h-full object-cover bg-amber-100"
+                                                                />
+                                                            )}
+
+                                                            {/* Status Overlay (Mic/Cam off icons would go here) */}
+                                                            <div className="absolute inset-0 bg-black/20 group-hover:bg-transparent transition-colors" />
+                                                        </div>
+
+                                                        {/* Name Tag */}
+                                                        <div className="absolute -bottom-8 left-1/2 transform -translate-x-1/2 text-white font-bold text-shadow-md whitespace-nowrap bg-black/30 px-3 py-1 rounded-full backdrop-blur-md text-sm">
+                                                            {p.name}
                                                         </div>
                                                     </div>
                                                 ))}
+
+                                                {/* Logic to show placeholder if only 1 user or empty */}
+                                                {participants.length === 0 && (
+                                                    <div className="text-white/30 font-bold text-xl self-center">Empty Couch</div>
+                                                )}
+
                                             </div>
-                                        ) : (
-                                            /* Empty State Placeholder */
-                                            <div className="w-full h-full flex flex-col items-center justify-center text-gray-500 gap-4">
-                                                <div className="w-20 h-20 rounded-2xl bg-white/5 flex items-center justify-center">
-                                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-10 w-10 opacity-50" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 10l4.553-2.276A1 1 0 0121 8.818v6.364a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                                                    </svg>
-                                                </div>
-                                                <div className="text-center">
-                                                    <h3 className="text-lg font-semibold text-slate-400">Ready to join?</h3>
-                                                    <p className="text-sm opacity-60">Turn on your camera to start the call</p>
-                                                </div>
-                                            </div>
-                                        )}
+                                            {/* Couch Armrests */}
+                                            <div className="absolute bottom-0 -left-8 w-16 h-[80%] bg-[#423b18] rounded-l-3xl -skew-x-6 origin-bottom-right shadow-lg z-20 hidden md:block" />
+                                            <div className="absolute bottom-0 -right-8 w-16 h-[80%] bg-[#423b18] rounded-r-3xl skew-x-6 origin-bottom-left shadow-lg z-20 hidden md:block" />
+                                        </div>
                                     </div>
                                 )
                             )}
