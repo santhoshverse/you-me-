@@ -4,6 +4,7 @@
     "description": "Backend for you&me watch party app",
     "main": "src/index.js",
     "scripts": {
+        "build": "cd frontend && npm install && npm run build && mkdir -p ../backend/public && cp -r dist/* ../backend/public/",
         "start": "cd backend && node server.js",
         "dev": "cd backend && nodemon server.js"
     },
