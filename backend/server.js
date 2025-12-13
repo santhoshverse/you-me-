@@ -147,11 +147,32 @@ app.get('*', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
-// Database Sync & Start
+// Database Connection Status
+let dbStatus = 'Connecting...';
+let dbError = null;
+
+// Start Server Immediately (Don't wait for DB)
+server.listen(PORT, () => {
+    console.log(`Signaling Server running on port ${PORT} (v2.8-Restored-Stable)`);
+});
+
+// Attempt DB Connection
 db.sequelize.sync().then(() => {
-    server.listen(PORT, () => {
-        console.log(`Signaling Server running on port ${PORT} (v2 Production)`);
-    });
+    dbStatus = 'Connected';
+    console.log('Database synced successfully');
 }).catch(err => {
+    dbStatus = 'Failed';
+    dbError = err.message;
     console.error('Database sync failed:', err);
+});
+
+// Version Check Endpoint
+app.get('/api/version', (req, res) => {
+    res.json({
+        version: 'v2.8-Restored-Stable',
+        type: 'MySQL-Sequelize',
+        dbStatus,
+        dbError,
+        env: process.env.NODE_ENV
+    });
 });
