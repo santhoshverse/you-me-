@@ -7,7 +7,7 @@
         "node": ">=18.0.0"
     },
     "scripts": {
-        "build": "node build.js",
+        "build": "echo 'Using pre-built assets...' && cd backend && npm install",
         "start": "cd backend && node server.js",
         "dev": "cd backend && nodemon server.js"
     },
