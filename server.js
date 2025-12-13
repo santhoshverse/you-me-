@@ -1,3 +1,4 @@
+require('dotenv').config();
 const express = require('express');
 console.log('--- SERVER STARTING: loading modules ---');
 const http = require('http');
