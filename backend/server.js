@@ -38,7 +38,7 @@ const io = new Server(server, {
 // Production improvement: Use Redis
 const peerToSocket = {};
 
-const PORT = 4000; // As requested
+const PORT = process.env.PORT || 4000;
 
 io.on('connection', (socket) => {
     console.log('Socket connected:', socket.id);
