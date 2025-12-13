@@ -160,13 +160,13 @@ let dbError = null;
 
 // Start Server Immediately (Don't wait for DB)
 server.listen(PORT, () => {
-    console.log(`Signaling Server running on port ${PORT} (v2.8-Restored-Stable)`);
+    console.log(`Signaling Server running on port ${PORT} (v3.0.0-PinToPin-Live)`);
 });
 
 // Attempt DB Connection
-db.sequelize.sync().then(() => {
+db.sequelize.sync({ alter: true }).then(() => {
     dbStatus = 'Connected';
-    console.log('Database synced successfully');
+    console.log('Database synced successfully (Schema updated)');
 }).catch(err => {
     dbStatus = 'Failed';
     dbError = err.message;
@@ -176,7 +176,7 @@ db.sequelize.sync().then(() => {
 // Version Check Endpoint
 app.get('/api/version', (req, res) => {
     res.json({
-        version: 'v2.8-Restored-Stable',
+        version: 'v3.0.0-PinToPin-Live',
         type: 'MySQL-Sequelize',
         dbStatus,
         dbError,
