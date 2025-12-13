@@ -7,9 +7,9 @@
         "node": ">=18.0.0"
     },
     "scripts": {
-        "build": "rm -rf backend/node_modules backend/package-lock.json && echo 'Cleaned nested modules. Using pre-built assets...'",
-        "start": "node backend/server.js",
-        "dev": "nodemon backend/server.js"
+        "build": "echo 'Using pre-built assets from ./public (Flat Deploy)'",
+        "start": "node server.js",
+        "dev": "nodemon server.js"
     },
     "dependencies": {
         "cors": "^2.8.5",
