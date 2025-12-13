@@ -11,10 +11,17 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
+const authRoutes = require('./src/routes/authRoutes');
+const roomRoutes = require('./src/routes/roomRoutes');
+
 // Version Check Endpoint
 app.get('/api/version', (req, res) => {
-    res.json({ version: '2.0.0-Production', type: 'MySQL-Sequelize' });
+    res.json({ version: '3.0.0-PinToPin-Redesign', type: 'MySQL-Sequelize' });
 });
+
+// API Routes
+app.use('/api/auth', authRoutes);
+app.use('/api/rooms', roomRoutes);
 
 // Serve static files from 'public' directory
 app.use(express.static(path.join(__dirname, 'public')));
