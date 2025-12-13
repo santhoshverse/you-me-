@@ -7,7 +7,7 @@
         "node": ">=18.0.0"
     },
     "scripts": {
-        "build": "./render-build.sh",
+        "build": "node build.js",
         "start": "cd backend && node server.js",
         "dev": "cd backend && nodemon server.js"
     },
