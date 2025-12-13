@@ -4,7 +4,7 @@
     "description": "Backend for you&me watch party app",
     "main": "src/index.js",
     "scripts": {
-        "build": "cd frontend && npm install --include=dev && npm run build && mkdir -p ../backend/public && cp -r dist/* ../backend/public/",
+        "build": "cd frontend && npm install --production=false && npm run build && mkdir -p ../backend/public && cp -r dist/* ../backend/public/",
         "start": "cd backend && node server.js",
         "dev": "cd backend && nodemon server.js"
     },
@@ -15,8 +15,6 @@
         "mysql2": "^3.15.3",
         "sequelize": "^6.37.7",
         "socket.io": "^4.7.2",
-        "sqlite": "^5.1.1",
-        "sqlite3": "^5.1.7",
         "uuid": "^9.0.1"
     },
     "devDependencies": {
