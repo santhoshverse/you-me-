@@ -7,7 +7,7 @@
         "node": ">=18.0.0"
     },
     "scripts": {
-        "build": "echo 'Using pre-built assets - Skipping Build'",
+        "build": "rm -rf backend/node_modules backend/package-lock.json && echo 'Cleaned nested modules. Using pre-built assets...'",
         "start": "node backend/server.js",
         "dev": "nodemon backend/server.js"
     },
