@@ -3,8 +3,11 @@
     "version": "1.0.0",
     "description": "Backend for you&me watch party app",
     "main": "src/index.js",
+    "engines": {
+        "node": ">=18.0.0"
+    },
     "scripts": {
-        "build": "cd frontend && npm install --production=false && npm run build && mkdir -p ../backend/public && cp -r dist/* ../backend/public/",
+        "build": "cd frontend && npm install --production=false && npm run build && cd ../backend && npm install && mkdir -p public && cp -r ../frontend/dist/* ./public/",
         "start": "cd backend && node server.js",
         "dev": "cd backend && nodemon server.js"
     },
